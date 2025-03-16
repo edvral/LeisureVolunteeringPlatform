@@ -23,7 +23,8 @@ namespace LeisureVolunteeringPlatform.Models
 
         public string? Comment { get; set; }
 
-        public bool IsApproved { get; set; } = false;
+        public bool? IsApproved { get; set; }
+        public string? Feedback { get; set; }
 
         public User User { get; set; }
 

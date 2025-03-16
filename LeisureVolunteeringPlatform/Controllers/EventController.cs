@@ -36,7 +36,8 @@ public class EventController : ControllerBase
                 StartDate = e.StartDate.ToString("yyyy-MM-dd"),
                 EndDate = e.EndDate.ToString("yyyy-MM-dd"),
                 StartTime = e.StartTime.ToString(@"hh\:mm"),
-                EndTime = e.EndTime.ToString(@"hh\:mm")
+                EndTime = e.EndTime.ToString(@"hh\:mm"),
+                e.OrganizerId
             }).ToListAsync();
 
         return Ok(events);
@@ -61,7 +62,8 @@ public class EventController : ControllerBase
                 EndDate = e.EndDate.ToString("yyyy-MM-dd"),
                 StartTime = e.StartTime.ToString(@"hh\:mm"),    
                 EndTime = e.EndTime.ToString(@"hh\:mm"),
-             })
+                e.OrganizerId
+            })
             .FirstOrDefaultAsync();
 
         if (eventData == null) return NotFound("Veikla nerasta!");
@@ -98,7 +100,7 @@ public class EventController : ControllerBase
                 .ToListAsync();
 
             pendingRegistrations = userRegistrations
-                .Where(r => !r.IsApproved)
+                .Where(r => r.IsApproved == null)
                 .ToDictionary(r => r.EventDate.ToString("yyyy-MM-dd"), r => true);
         }
 
@@ -115,6 +117,7 @@ public class EventController : ControllerBase
             eventData.EndDate,
             eventData.StartTime,
             eventData.EndTime,
+            eventData.OrganizerId,
             VolunteersCountPerDate = volunteersPerDate.ToDictionary(v => v.Date, v => Math.Max(0, eventData.VolunteersCount - v.RegisteredCount)),
             PendingRegistrations = pendingRegistrations
         };
@@ -126,6 +129,9 @@ public class EventController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateEvent([FromBody] EventDTO eventDto)
     {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        if (userId == 0) return Unauthorized(new { message = "Neautorizuotas naudotojas." });
+
         if (eventDto == null)
             return BadRequest(new { message = "Netinkami veiklos duomenys!" });
 
@@ -175,7 +181,8 @@ public class EventController : ControllerBase
             StartDate = startDate,
             EndDate = endDate,
             StartTime = startTime,
-            EndTime = endTime
+            EndTime = endTime,
+            OrganizerId = userId
         };
 
         _context.Events.Add(newEvent);
@@ -225,12 +232,72 @@ public class EventController : ControllerBase
             Surname = registrationDto.Surname,
             Age = registrationDto.Age,
             Comment = registrationDto.Comment,
-            IsApproved = false 
         };
 
         _context.EventRegistrations.Add(newRegistration);
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Registracija į savanorišką veiklą pateikta!", eventDate = registrationDto.EventDate });
+    }
+
+    [Authorize(Policy = "OrganizerOnly")]
+    [HttpGet("{id}/volunteers/{eventDate}")]
+    public async Task<IActionResult> GetEventVolunteers(int id, string eventDate)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        var eventEntity = await _context.Events.FindAsync(id);
+
+        if (eventEntity == null)
+            return NotFound(new { message = "Veikla nerasta!" });
+
+        if (eventEntity.OrganizerId != userId)
+            return Forbid();
+
+        if (!DateTime.TryParseExact(eventDate, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.AssumeLocal, out DateTime parsedDate))
+        {
+            return BadRequest(new { message = "Netinkamas datos formatas! Turi būti YYYY-MM-DD." });
+        }
+
+        var volunteers = await _context.EventRegistrations
+            .Where(er => er.EventId == id && er.EventDate == parsedDate)
+            .Select(er => new
+            {
+                registrationId = er.Id,
+                er.Name,
+                er.Surname,
+                er.Age,
+                er.Comment,
+                er.IsApproved,
+                er.Feedback,
+                er.EventDate
+            })
+            .ToListAsync();
+
+        return Ok(volunteers);
+    }
+
+    [Authorize(Policy = "OrganizerOnly")]
+    [HttpPost("{id}/volunteers/{registrationId}/approve")]
+    public async Task<IActionResult> ApproveVolunteer(int id, int registrationId, [FromBody] VolunteerApprovalDTO approvalDto)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        var eventEntity = await _context.Events.FindAsync(id);
+
+        if (eventEntity == null)
+            return NotFound(new { message = "Veikla nerasta!" });
+
+        if (eventEntity.OrganizerId != userId)
+            return Forbid(); 
+
+        var registration = await _context.EventRegistrations.FindAsync(registrationId);
+        if (registration == null || registration.EventId != id)
+            return NotFound(new { message = "Registracija nerasta!" });
+
+        registration.IsApproved = approvalDto.IsApproved;
+        registration.Feedback = approvalDto.Feedback;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = approvalDto.IsApproved ? "Savanoris patvirtintas!" : "Savanoris atmestas!" });
     }
 }

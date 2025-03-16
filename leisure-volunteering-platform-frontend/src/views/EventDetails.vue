@@ -45,6 +45,17 @@
 
     <v-col cols="4" class="d-flex justify-end align-center">
       <v-btn 
+        v-if="userId === event.organizerId"
+        color="primary"
+        small
+        outlined
+        class="fancy-button-volunteers"
+        @click="fetchVolunteers(dateObj.date)"
+      > 
+        <v-icon left>mdi-account-group</v-icon> Savanorių sąrašas
+      </v-btn>
+
+      <v-btn 
         v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24 && event.volunteersCountPerDate[dateObj.date] > 0 && !pendingApproval[dateObj.date]"
         color="success"
         small
@@ -63,7 +74,7 @@
         🚫 Registracija šiai savanoriškai veiklai baigta.
       </p>
 
-      <p v-if="userRole !== 'Volunteer'" class="text-warning font-weight-bold mt-2">
+      <p v-if="userRole !== 'Volunteer' && userId !== event.organizerId" class="text-warning font-weight-bold mt-2">
       🔒 Prisijunkite kaip savanoris norint užsiregistruoti į veiklą
       </p>
     </v-col>
@@ -74,12 +85,102 @@
 </div>
 
 <div v-else class="text-center text-red font-weight-bold mt-4">
-  📅 Patikslinkite datas ir laikus!
+  📅 Patikslinkite datas !
 </div>
 
     </v-card>
 
     <v-alert v-else type="error">Renginys nerastas.</v-alert>
+
+  <v-dialog v-model="showVolunteersModal" max-width="1000">
+  <v-card class="elevated-card">
+    <v-card-title class="text-h5 d-flex align-center">
+      <v-icon color="primary" class="mr-2">mdi-account-group</v-icon>
+      Savanorių sąrašas
+    </v-card-title>
+
+    <v-divider></v-divider>
+
+    <v-card-text>
+      <v-container fluid>
+        <v-row v-if="volunteers.length > 0">
+          <v-col v-for="volunteer in volunteers" :key="volunteer.name" cols="12">
+            <v-card class="volunteer-card pa-3">
+              <v-row align="center">
+                <v-col cols="3" class="d-flex justify-center">
+                  <v-avatar color="blue" size="50" class="volunteer-avatar">
+                    <v-icon color="white">mdi-account</v-icon>
+                  </v-avatar>
+                </v-col>
+                <v-col cols="9">
+                  <p class="font-weight-bold text-primary">👤 {{ volunteer.name }} {{ volunteer.surname }}</p>
+                  <p class="text-caption">🎂 <strong>Amžius:</strong> {{ volunteer.age }}</p>
+                  <p class="text-caption">📝 <strong>Papildoma informacija:</strong> {{ volunteer.comment || "-" }}</p>
+                </v-col>
+              </v-row>
+
+             <v-divider class="my-2"></v-divider>
+
+             <v-row>
+            <v-col cols="12">
+            <p v-if="volunteer.isApproved === true" class="text-success font-weight-bold">
+            ✅ Patvirtinta
+            </p>
+
+            <p v-else-if="volunteer.isApproved === false" class="text-error font-weight-bold">
+            ❌ Atmesta
+            </p>
+
+           <v-row v-if="userId === event.organizerId && volunteer.isApproved === null">
+            <v-col cols="12">
+              <v-row align="center">
+                <v-col cols="8">
+                <v-textarea
+                  v-model="volunteer.feedback"
+                  label="📝 Palikti atsiliepimą"
+                  outlined
+                  dense
+                ></v-textarea>
+              </v-col>
+              <v-col cols="4" class="d-flex align-center justify-end">
+                <v-btn color="success" small class="approve-btn" @click="approveVolunteer(volunteer, true)">
+                  <v-icon left>mdi-check</v-icon> Patvirtinti
+                </v-btn>
+                <v-btn color="red darken-1" small class="ml-2 reject-btn" @click="approveVolunteer(volunteer, false)">
+            <v-icon left>mdi-close</v-icon> Atmesti
+          </v-btn>
+        </v-col>
+      </v-row>
+  </v-col>
+</v-row>
+
+<p v-if="volunteer.feedback" class="text-caption text-grey feedback-text">
+  📝 Atsiliepimas: <em>{{ volunteer.feedback }}</em>
+</p>
+      </v-col>
+      </v-row>
+            </v-card>
+          </v-col>
+        </v-row>
+
+        <v-row v-else>
+          <v-col class="text-center text-grey">
+            <p>📭 Nėra savanorių užsiregistravusių šiai datai.</p>
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-card-text>
+
+    <v-divider></v-divider>
+
+    <v-card-actions class="d-flex justify-end">
+      <v-btn color="grey darken-1" class="cancel-button" @click="showVolunteersModal = false">
+        <v-icon left>mdi-close</v-icon> Uždaryti
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
   </v-container>
 
 <v-dialog v-model="showRegistrationForm" max-width="500">
@@ -96,7 +197,7 @@
         <v-text-field 
           v-model="registrationData.name" 
           label="Vardas" 
-          required 
+          prepend-inner-icon="mdi-account" 
           outlined 
           dense
         ></v-text-field>
@@ -104,7 +205,7 @@
         <v-text-field 
           v-model="registrationData.surname" 
           label="Pavardė" 
-          required 
+          prepend-inner-icon="mdi-account" 
           outlined 
           dense
         ></v-text-field>
@@ -113,7 +214,7 @@
           v-model="registrationData.age" 
           label="Amžius" 
           type="number" 
-          required 
+          prepend-inner-icon="mdi-cake" 
           outlined 
           dense
           @input="validateForm"
@@ -122,6 +223,7 @@
         <v-textarea 
           v-model="registrationData.comment" 
           label="Papildoma informacija apie save (rekomenduojama)" 
+          prepend-inner-icon="mdi-comment-text-outline" 
           outlined 
           dense
         ></v-textarea>
@@ -133,19 +235,21 @@
     <v-divider></v-divider>
 
     <v-card-actions class="d-flex justify-end">
-      <v-btn color="grey darken-1" @click="showRegistrationForm = false">
+      <v-btn color="grey darken-1" class="cancel-button" @click="showRegistrationForm = false">
         <v-icon left>mdi-close</v-icon> Atšaukti
       </v-btn>
       <v-btn 
         color="success" 
+        class="submit-button"
         :disabled="isSubmitDisabled" 
         @click="submitRegistration"
       >
-        <v-icon left>mdi-check</v-icon> Registruotis į veiklą
+        <v-icon left>mdi-check</v-icon> Registruotis
       </v-btn>
     </v-card-actions>
   </v-card>
 </v-dialog>
+
 </template>
 
 <script>
@@ -157,9 +261,12 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      showVolunteersModal: false,
+      volunteers: [],
       toast: useToast(),
       event: null,
       userRole: null,
+      userId: null,
       showRegistrationForm: false,
       selectedDate: null,
       registrationData: {
@@ -244,6 +351,70 @@ export default {
 }
 },
   methods: {
+    async approveVolunteer(volunteer, isApproved) {
+    try {
+      const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+
+      if (!volunteer.registrationId) {
+        console.error("Volunteer registrationId is missing:", volunteer);
+        this.toast.error("Registracijos ID nerastas!");
+        return;
+      }
+
+      console.log("Approving Volunteer:", volunteer.registrationId, isApproved);
+
+      const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/volunteers/${volunteer.registrationId}/approve`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          isApproved: isApproved,
+          feedback: volunteer.feedback || ""
+        }),
+      });
+
+      console.log("API Response Status:", response.status);
+
+      const result = await response.json();
+      console.log("API Response Body:", result);
+
+      if (!response.ok) throw new Error(result?.message || "Nepavyko atnaujinti registracijos būsenos!");
+
+      this.toast.success(isApproved ? "Savanoris patvirtintas!" : "Savanoris atmestas!");
+
+      volunteer.isApproved = isApproved;
+      volunteer.feedback = volunteer.feedback || "";
+
+      await this.fetchVolunteers(this.selectedDate);
+    } catch (error) {
+      console.error("Klaida patvirtinant savanorį:", error);
+      this.toast.error("Nepavyko atnaujinti registracijos būsenos.");
+    }
+},
+    async fetchVolunteers(date) {
+    try {
+      const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+      const formattedDate = date.split('.').reverse().join('-');
+
+      const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/volunteers/${formattedDate}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error("Failed to fetch volunteers");
+
+      const volunteersData = await response.json();
+      
+      this.volunteers = volunteersData.map(v => ({
+        ...v,
+        registrationId: v.registrationId  
+      }));
+
+      this.showVolunteersModal = true;
+    } catch (error) {
+      console.error("Error fetching volunteers:", error);
+    }
+  },
     openRegistrationForm(date) {
     this.selectedDate = date;
     this.showRegistrationForm = true;
@@ -398,6 +569,7 @@ async fetchEventDetails() {
   mounted() {
     this.fetchEventDetails();
     this.userRole = this.getUserRoleFromToken();
+    this.userId = Number(this.getUserIdFromToken());
   },
 }
 </script>
@@ -437,5 +609,83 @@ async fetchEventDetails() {
 .fancy-button:hover {
   background-color: #2e7d32 !important;
   color: white !important;
+}
+
+.fancy-button-volunteers {
+  font-weight: bold;
+  text-transform: none;
+  letter-spacing: 0.5px;
+  border-radius: 20px; 
+  transition: all 0.3s ease-in-out;
+}
+
+.fancy-button-volunteers:hover {
+  background-color: darken !important;
+  color: white !important;
+}
+
+.submit-button {
+  font-weight: bold;
+  text-transform: none;
+  border-radius: 20px; 
+  transition: all 0.3s ease-in-out;
+}
+
+.submit-button:hover {
+  background-color:rgb(46, 63, 125) !important;
+  color: white !important;
+}
+
+.cancel-button {
+  font-weight: bold;
+  text-transform: none;
+  border-radius: 20px;
+  transition: all 0.3s ease-in-out;
+}
+
+.volunteer-card {
+  background-color: white;
+  border-radius: 12px;
+  transition: background-color 0.3s ease-in-out, transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.volunteer-card:hover:not(:focus-within) {
+  background-color: #e3f2fd;
+  transform: scale(1.02);
+}
+
+.volunteer-card:focus-within {
+  transform: none !important;
+  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.volunteer-avatar {
+  transition: 0.3s;
+}
+
+.volunteer-avatar:hover {
+  transform: scale(1.1);
+}
+
+.cancel-button:hover {
+  background-color: #b0bec5 !important;
+  color: white !important;
+}
+
+.elevated-card {
+  border-radius: 12px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.elevated-card:hover:not(:focus-within) {
+  transform: scale(1.02);
+  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.elevated-card:focus-within {
+  transform: none !important;
+  box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15);
 }
 </style>
