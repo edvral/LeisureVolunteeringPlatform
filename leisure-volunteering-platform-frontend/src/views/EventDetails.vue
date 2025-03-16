@@ -28,7 +28,7 @@
       <v-divider class="my-3"></v-divider>
 
       <v-card-title class="text-h5 d-flex align-center">
-      <v-icon left color="success" class="mr-2">mdi-calendar-clock</v-icon> Renginio laikai
+      <v-icon left color="success" class="mr-2">mdi-calendar-clock</v-icon> Datos ir laikai
       </v-card-title>
 
 
@@ -45,17 +45,21 @@
 
     <v-col cols="4" class="d-flex justify-end align-center">
       <v-btn 
-        v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24"
+        v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24 && event.volunteersCountPerDate[dateObj.date] > 0 && !pendingApproval[dateObj.date]"
         color="success"
         small
         outlined
         class="fancy-button"
-        @click="registerForEvent(dateObj.date)"
+        @click="openRegistrationForm(dateObj.date)"
       > 
-        <v-icon left>mdi-account-plus</v-icon> Registruotis į veiklą
+        <v-icon left>mdi-account-plus</v-icon> Registruotis šiai veiklai
       </v-btn>
 
-      <p v-else-if="userRole === 'Volunteer'" class="text-error font-weight-bold">
+      <p v-else-if="pendingApproval[dateObj.date]" class="text-warning font-weight-bold">
+      ⏳ Laukiama atsakymo iš organizatoriaus...
+      </p>
+
+      <p v-else-if="userRole === 'Volunteer' && (event.volunteersCountPerDate[dateObj.date] <= 0 || dateObj.hoursLeft <= 24)" class="text-error font-weight-bold">
         🚫 Registracija šiai savanoriškai veiklai baigta.
       </p>
 
@@ -69,29 +73,114 @@
 </div>
 </div>
 
-<div v-else class="text-center text-grey font-weight-bold mt-4">
-  📅 Renginio datos bus patikslintos greitu metu
+<div v-else class="text-center text-red font-weight-bold mt-4">
+  📅 Patikslinkite datas ir laikus!
 </div>
 
     </v-card>
 
     <v-alert v-else type="error">Renginys nerastas.</v-alert>
   </v-container>
+
+<v-dialog v-model="showRegistrationForm" max-width="500">
+  <v-card class="elevated-card">
+    <v-card-title class="text-h5 d-flex align-center">
+      <v-icon color="primary" class="mr-2">mdi-account-plus</v-icon>
+      Registracija savanoriškai veiklai
+    </v-card-title>
+
+    <v-divider></v-divider>
+
+    <v-card-text>
+      <v-form ref="registrationForm">
+        <v-text-field 
+          v-model="registrationData.name" 
+          label="Vardas" 
+          required 
+          outlined 
+          dense
+        ></v-text-field>
+
+        <v-text-field 
+          v-model="registrationData.surname" 
+          label="Pavardė" 
+          required 
+          outlined 
+          dense
+        ></v-text-field>
+
+        <v-text-field 
+          v-model="registrationData.age" 
+          label="Amžius" 
+          type="number" 
+          required 
+          outlined 
+          dense
+          @input="validateForm"
+        ></v-text-field>
+
+        <v-textarea 
+          v-model="registrationData.comment" 
+          label="Papildoma informacija apie save (rekomenduojama)" 
+          outlined 
+          dense
+        ></v-textarea>
+
+        <p v-if="invalidAge" class="text-red font-weight-bold">⚠️ Amžius turi būti teigiamas skaičius!</p>
+      </v-form>
+    </v-card-text>
+
+    <v-divider></v-divider>
+
+    <v-card-actions class="d-flex justify-end">
+      <v-btn color="grey darken-1" @click="showRegistrationForm = false">
+        <v-icon left>mdi-close</v-icon> Atšaukti
+      </v-btn>
+      <v-btn 
+        color="success" 
+        :disabled="isSubmitDisabled" 
+        @click="submitRegistration"
+      >
+        <v-icon left>mdi-check</v-icon> Registruotis į veiklą
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
 </template>
 
 <script>
 /* global google */
+import { useToast } from "vue-toastification";
 import loader from "@/utils/GoogleMapsLoader";
 
 export default {
   name: "EventDetails",
   data() {
     return {
+      toast: useToast(),
       event: null,
       userRole: null,
+      showRegistrationForm: false,
+      selectedDate: null,
+      registrationData: {
+      name: "",
+      surname: "",
+      age: "",
+      comment: "",
+    },
+     invalidAge: false, 
+     pendingApproval: {},
     };
   },
   computed: {
+    isSubmitDisabled() {
+    return (
+      !this.registrationData.name.trim() ||
+      !this.registrationData.surname.trim() ||
+      !this.registrationData.age ||
+      this.registrationData.age <= 0
+    );
+  },
   formattedDateRange() {
   if (!this.event?.startDate || !this.event?.endDate) return "Invalid Date";
 
@@ -155,39 +244,41 @@ export default {
 }
 },
   methods: {
+    openRegistrationForm(date) {
+    this.selectedDate = date;
+    this.showRegistrationForm = true;
+  },
+  validateForm() {
+    this.invalidAge = this.registrationData.age <= 0;
+  },
 async fetchEventDetails() {
   const eventId = this.$route.params.id;
-  try {
+  const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
 
-    const response = await fetch(`https://localhost:7177/api/events/${eventId}`);
+  try {
+    const response = await fetch(`https://localhost:7177/api/events/${eventId}`, {
+      headers: token
+        ? { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" }
+    });
     if (!response.ok) throw new Error(`Failed to fetch event: ${response.statusText}`);
 
     const eventData = await response.json();
-
     if (!eventData || Object.keys(eventData).length === 0) {
       throw new Error("Event data is empty or invalid");
     }
 
-    if (!eventData.volunteersCount) {
-      console.warn("Warning: VolunteersCount is missing in event data.");
-    }
-
-    const start = new Date(eventData.startDate);
-    const end = new Date(eventData.endDate);
-    eventData.volunteersCountPerDate = {}; 
-
-    while (start <= end) {
-      const formattedDate = new Intl.DateTimeFormat("lt-LT", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(start);
-
-      eventData.volunteersCountPerDate[formattedDate] = eventData.volunteersCount; 
-      start.setDate(start.getDate() + 1);
-    }
-
     this.event = eventData;
+
+    this.event.volunteersCountPerDate = eventData.volunteersCountPerDate || {};
+    this.pendingApproval = eventData.pendingRegistrations || {};
+
+     this.eventDates.forEach(dateObj => {
+      if (this.event.volunteersCountPerDate[dateObj.date] === undefined) {
+        this.event.volunteersCountPerDate[dateObj.date] = this.event.volunteersCount; 
+      }
+    });
+
     this.$nextTick(() => {
       this.initMap();
     });
@@ -235,16 +326,72 @@ async fetchEventDetails() {
       return null;
     }
   },
- async registerForEvent(date) {
-  try {
-    if (this.event.volunteersCountPerDate[date] !== undefined) {
-      this.event.volunteersCountPerDate[date] = Math.max(0, this.event.volunteersCountPerDate[date] - 1);
+ async submitRegistration() {
+    if (!this.registrationData.name || !this.registrationData.surname || !this.registrationData.age) {
+      this.toast.error("Užpildykite visus privalomus laukus!");
+      return;
     }
 
-    this.$toast.success(`Sėkmingai užsiregistravote į veiklą ${date}`);
+    try {
+      const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+      if (!token) {
+        this.toast.error("Jūs turite būti prisijungęs!");
+        return;
+      }
+
+      const userId = this.getUserIdFromToken();
+      if (!userId) {
+        this.toast.error("Nepavyko gauti vartotojo ID!");
+        return;
+      }
+
+      const response = await fetch("https://localhost:7177/api/events/register", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: userId,
+          eventId: this.event.id,
+          eventDate: this.selectedDate,
+          name: this.registrationData.name,
+          surname: this.registrationData.surname,
+          age: this.registrationData.age,
+          comment: this.registrationData.comment,
+        }),
+      });
+
+      let result = await response.json();
+      if (!response.ok) throw new Error(result?.message || "Registracija į veiklą nepavyko!");
+
+      this.pendingApproval[this.selectedDate] = true;
+
+      this.toast.success("Registracija į veiklą pateikta!");
+
+      this.showRegistrationForm = false;
+
+      await this.fetchEventDetails();
+
+    } catch (error) {
+      console.error("Registracijos klaida:", error);
+      this.toast.error(error.message || "Registracija nepavyko!");
+    }
+  },
+ getUserIdFromToken() {
+  const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+  if (!token) return null;
+
+  try {
+    const payloadBase64 = token.split(".")[1]; 
+    if (!payloadBase64) return null;
+
+    const decodedPayload = JSON.parse(atob(payloadBase64));
+    return decodedPayload["userId"] || null;
+
   } catch (error) {
-    console.error("Registracijos klaida:", error);
-    this.$toast.error("Registracija nepavyko");
+    console.error("[ERROR] Failed to decode token:", error);
+    return null;
   }
 }
 },

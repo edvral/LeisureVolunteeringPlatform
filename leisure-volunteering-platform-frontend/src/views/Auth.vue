@@ -49,7 +49,9 @@
                 <v-card>
                   <v-card-title class="headline">Atkurti slaptažodį</v-card-title>
                   <v-card-text>
+                  <p class="mb-4">
                     Įveskite savo el. pašto adresą ir mes atsiųsime nuorodą slaptažodžio atkūrimui.
+                  </p>
                     <v-text-field 
                       v-model="forgotPasswordEmail" 
                       label="El. paštas" 

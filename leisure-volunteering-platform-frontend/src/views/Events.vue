@@ -26,14 +26,14 @@
             <v-divider class="my-3"></v-divider> 
 
             <p class="text-subtitle-2">
-              👥 <strong>Likusios vietos: {{ event.volunteersCount }}</strong>
+            👥 <strong v-if="event.nextEventDate">Likusios vietos: {{ event.nextEventSpots }}</strong>
             </p>
 
             <v-divider class="my-3"></v-divider> 
                  
             <p class="text-subtitle-2">
             📅 <strong v-if="event.nextEventDate">{{ event.nextEventDate }}</strong>
-            <strong v-else>Data bus patikslinta greitu metu</strong>
+            <strong v-else class="text-red font-weight-bold">Patikslinkite datą !</strong>
             </p>
             
             <p class="text-subtitle-2">
@@ -74,41 +74,59 @@ export default {
     if (!response.ok) throw new Error("Failed to fetch events");
 
     const data = await response.json();
+    console.log("🔍 Full API Response:", JSON.stringify(data, null, 2)); // <-- Debug API response
 
     const now = new Date(); 
     now.setSeconds(0, 0); 
 
-    this.events = data.map(event => {
-      const start = new Date(event.startDate);
-      const end = new Date(event.endDate);
-      let nextDate = null;
+    const enrichedEvents = await Promise.all(
+      data.map(async (event) => {
+        const start = new Date(event.startDate);
+        const end = new Date(event.endDate);
+        let nextDate = null;
+        let availableSpots = event.volunteersCount; // Default to max spots
 
-      while (start <= end) {
-        const eventDate = new Date(start);
-        eventDate.setHours(0, 0, 0, 0);
+        while (start <= end) {
+          const eventDate = new Date(start);
+          eventDate.setHours(0, 0, 0, 0);
 
-        const eventStartTime = new Date(eventDate);
-        const [startHour, startMinute] = event.startTime.split(":");
-        eventStartTime.setHours(startHour, startMinute, 0, 0);
+          const eventStartTime = new Date(eventDate);
+          const [startHour, startMinute] = event.startTime.split(":");
+          eventStartTime.setHours(startHour, startMinute, 0, 0);
 
-        if (eventStartTime > now) { 
-          nextDate = new Intl.DateTimeFormat("lt-LT", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          }).format(eventDate); 
-          break; 
+          if (eventStartTime > now) {
+            nextDate = new Intl.DateTimeFormat("lt-LT", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            }).format(eventDate);
+
+            // ✅ Fetch detailed event data to get `volunteersCountPerDate`
+            const eventDetailsResponse = await fetch(`https://localhost:7177/api/events/${event.id}`);
+            if (eventDetailsResponse.ok) {
+              const eventDetails = await eventDetailsResponse.json();
+
+              if (eventDetails.volunteersCountPerDate && eventDetails.volunteersCountPerDate[nextDate] !== undefined) {
+                availableSpots = Math.max(0, eventDetails.volunteersCountPerDate[nextDate]);
+              }
+            }
+
+            console.log(`✅ Event: ${event.name}, Date: ${nextDate}, Available Spots: ${availableSpots}`);
+            break;
+          }
+
+          start.setDate(start.getDate() + 1);
         }
 
-        start.setDate(start.getDate() + 1); 
-      }
+        return {
+          ...event,
+          nextEventDate: nextDate,
+          nextEventSpots: availableSpots,
+        };
+      })
+    );
 
-      return {
-        ...event,
-        nextEventDate: nextDate, 
-      };
-    });
-
+    this.events = enrichedEvents;
   } catch (error) {
     console.error("Klaida gaunant renginius:", error);
   }
