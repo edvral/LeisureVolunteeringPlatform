@@ -8,6 +8,7 @@ using LeisureVolunteeringPlatform.Models;
 using LeisureVolunteeringPlatform.DTOs;
 using System;
 using Microsoft.AspNetCore.Authorization;
+using System.Globalization;
 
 [Route("api/events")]
 [ApiController]
@@ -69,12 +70,12 @@ public class EventController : ControllerBase
         if (eventData == null) return NotFound("Veikla nerasta!");
 
         var volunteersPerDate = await _context.EventRegistrations
-            .Where(er => er.EventId == id)
+            .Where(er => er.EventId == id && er.IsApproved == true)
             .GroupBy(er => er.EventDate)
             .Select(g => new
             {
                 Date = g.Key.ToString("yyyy-MM-dd"),
-                RegisteredCount = g.Count(),
+                ApprovedCount = g.Count(),
             })
             .ToListAsync();
 
@@ -91,13 +92,21 @@ public class EventController : ControllerBase
 
 
         var pendingRegistrations = new Dictionary<string, bool>();
+        var volunteerApprovalStatus = new Dictionary<string, string>();
+        var volunteerFeedback = new Dictionary<string, string>();
 
         if (userId > 0)
         {
             var userRegistrations = await _context.EventRegistrations
                 .Where(er => er.EventId == id && er.UserId == userId)
-                .Select(er => new { er.EventDate, er.IsApproved })
+                .Select(er => new { er.EventDate, er.IsApproved, er.Feedback })
                 .ToListAsync();
+
+            volunteerApprovalStatus = userRegistrations
+                .ToDictionary(r => r.EventDate.ToString("yyyy-MM-dd"), r => r.IsApproved == null ? "pending" : (r.IsApproved == true ? "approved" : "rejected"));
+
+            volunteerFeedback = userRegistrations
+                .ToDictionary(r => r.EventDate.ToString("yyyy-MM-dd"), r => r.Feedback ?? "");
 
             pendingRegistrations = userRegistrations
                 .Where(r => r.IsApproved == null)
@@ -118,8 +127,10 @@ public class EventController : ControllerBase
             eventData.StartTime,
             eventData.EndTime,
             eventData.OrganizerId,
-            VolunteersCountPerDate = volunteersPerDate.ToDictionary(v => v.Date, v => Math.Max(0, eventData.VolunteersCount - v.RegisteredCount)),
-            PendingRegistrations = pendingRegistrations
+            VolunteersCountPerDate = volunteersPerDate.ToDictionary(v => v.Date, v => Math.Max(0, eventData.VolunteersCount - v.ApprovedCount)),
+            PendingRegistrations = pendingRegistrations,
+            VolunteerApprovalStatus = volunteerApprovalStatus,
+            VolunteerFeedback = volunteerFeedback
         };
 
         return Ok(response);
@@ -232,12 +243,13 @@ public class EventController : ControllerBase
             Surname = registrationDto.Surname,
             Age = registrationDto.Age,
             Comment = registrationDto.Comment,
+            IsApproved = null
         };
 
         _context.EventRegistrations.Add(newRegistration);
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Registracija į savanorišką veiklą pateikta!", eventDate = registrationDto.EventDate });
+        return Ok(new { message = "Registracija į savanorišką veiklą pateikta!", eventDate = registrationDto.EventDate, pendingApproval = true });
     }
 
     [Authorize(Policy = "OrganizerOnly")]
@@ -293,11 +305,64 @@ public class EventController : ControllerBase
         if (registration == null || registration.EventId != id)
             return NotFound(new { message = "Registracija nerasta!" });
 
+        if (registration.IsApproved == null && approvalDto.IsApproved == true)
+        {
+            int approvedCount = await _context.EventRegistrations
+                .Where(er => er.EventId == id && er.EventDate == registration.EventDate && er.IsApproved == true)
+                .CountAsync();
+
+            if (approvedCount >= eventEntity.VolunteersCount)
+                return BadRequest(new { message = "Nebėra laisvų vietų šiai datai!" });
+        }
+
         registration.IsApproved = approvalDto.IsApproved;
         registration.Feedback = approvalDto.Feedback;
 
         await _context.SaveChangesAsync();
 
         return Ok(new { message = approvalDto.IsApproved ? "Savanoris patvirtintas!" : "Savanoris atmestas!" });
+    }
+
+    [Authorize(Policy = "VolunteerOnly")]
+    [HttpPost("{eventId}/cancel-registration/{eventDate}")]
+    public async Task<IActionResult> CancelRegistration(int eventId, string eventDate)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value);
+
+        if (!DateTime.TryParseExact(eventDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedDate))
+        {
+            return BadRequest(new { message = "Netinkamas datos formatas!" });
+        }
+
+        var registration = await _context.EventRegistrations
+            .FirstOrDefaultAsync(er => er.EventId == eventId && er.UserId == userId && er.EventDate == parsedDate);
+
+        if (registration == null)
+        {
+            return NotFound(new { message = "Registracija nerasta!" });
+        }
+
+        var eventDetails = await _context.Events.FindAsync(eventId);
+        if (eventDetails == null)
+        {
+            return NotFound(new { message = "Veikla nerasta!" });
+        }
+
+        if (!TimeSpan.TryParse(eventDetails.StartTime.ToString(), out TimeSpan eventStartTime))
+        {
+            return BadRequest(new { message = "Netinkamas laiko formatas!" });
+        }
+
+        DateTime eventStartDateTime = parsedDate.Add(eventStartTime);
+
+        if ((eventStartDateTime - DateTime.UtcNow).TotalHours <= 24)
+        {
+            return BadRequest(new { message = "Negalite atšaukti registracijos likus mažiau nei 24 valandoms iki renginio pradžios!" });
+        }
+
+        _context.EventRegistrations.Remove(registration);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Registracija sėkmingai atšaukta!" });
     }
 }

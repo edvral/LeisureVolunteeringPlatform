@@ -31,7 +31,6 @@
       <v-icon left color="success" class="mr-2">mdi-calendar-clock</v-icon> Datos ir laikai
       </v-card-title>
 
-
       <v-divider class="my-2"></v-divider>
 
    <div v-if="eventDates.length > 0">
@@ -56,7 +55,7 @@
       </v-btn>
 
       <v-btn 
-        v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24 && event.volunteersCountPerDate[dateObj.date] > 0 && !pendingApproval[dateObj.date]"
+        v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24 && event.volunteersCountPerDate[dateObj.date] > 0 && !pendingApproval[dateObj.date] && (event.volunteerApprovalStatus[dateObj.date] === 'pending' || !event.volunteerApprovalStatus[dateObj.date])"
         color="success"
         small
         outlined
@@ -69,6 +68,61 @@
       <p v-else-if="pendingApproval[dateObj.date]" class="text-warning font-weight-bold">
       ⏳ Laukiama atsakymo iš organizatoriaus...
       </p>
+
+      <p v-else-if="event.volunteerApprovalStatus[dateObj.date] === 'approved' && userRole === 'Volunteer'" class="text-success font-weight-bold">
+        ✅ Organizatorius jus patvirtino!
+        <br>
+        <br>
+        <a 
+          href="#" 
+          class="fancy-link" 
+          @click.prevent="toggleFeedback(dateObj.date)"
+        >   
+          <v-icon left>{{ showFeedback[dateObj.date] ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon> 
+          {{ showFeedback[dateObj.date] ? "Slėpti Atsiliepimą" : "Peržiūrėti Atsiliepimą" }}
+        </a>
+
+        <transition name="fade">
+         <span v-if="showFeedback[dateObj.date]" class="feedback-box">
+         <p class="feedback-text">
+            {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
+            <br>
+         </p>
+          </span>
+        </transition>
+
+      <br>
+    <a 
+    v-if="dateObj.hoursLeft > 24" 
+    href="#" 
+    class="fancy-link cancel-link" 
+    @click.prevent="cancelRegistration(dateObj.date)"
+    >
+    <v-icon left>mdi-close-circle</v-icon> Atsaukti registraciją
+  </a>
+      </p>
+
+      <p v-else-if="event.volunteerApprovalStatus[dateObj.date] === 'rejected' && userRole === 'Volunteer'" class="text-error font-weight-bold">
+      ❌ Organizatorius atšaukė jūsų registraciją!
+      <br>
+      <br>
+      <a 
+        href="#" 
+        class="fancy-link" 
+        @click.prevent="toggleFeedback(dateObj.date)"
+      >   
+        <v-icon left>{{ showFeedback[dateObj.date] ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon> 
+        {{ showFeedback[dateObj.date] ? "Slėpti Atsiliepimą" : "Peržiūrėti Atsiliepimą" }}
+      </a>
+
+      <transition name="fade">
+        <div v-if="showFeedback[dateObj.date]" class="feedback-box">
+          <p class="feedback-text">
+            {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
+          </p>
+        </div>
+      </transition>
+    </p>
 
       <p v-else-if="userRole === 'Volunteer' && (event.volunteersCountPerDate[dateObj.date] <= 0 || dateObj.hoursLeft <= 24)" class="text-error font-weight-bold">
         🚫 Registracija šiai savanoriškai veiklai baigta.
@@ -85,7 +139,7 @@
 </div>
 
 <div v-else class="text-center text-red font-weight-bold mt-4">
-  📅 Patikslinkite datas !
+  📅 Patikslinkite datas!
 </div>
 
     </v-card>
@@ -261,6 +315,7 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      showFeedback: {},
       showVolunteersModal: false,
       volunteers: [],
       toast: useToast(),
@@ -351,6 +406,39 @@ export default {
 }
 },
   methods: {
+   async cancelRegistration(eventDate) {
+    try {
+      const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+      if (!token) {
+        this.toast.error("Jūs turite būti prisijungęs!");
+        return;
+      }
+
+      const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/cancel-registration/${eventDate}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result?.message || "Nepavyko atšaukti registracijos!");
+
+      this.toast.success("Jūsų registracija buvo atšaukta!");
+
+      this.event.volunteerApprovalStatus[eventDate] = "cancelled";
+      this.fetchEventDetails();
+
+    } catch (error) {
+      console.error("Registracijos atšaukimo klaida:", error);
+      this.toast.error(error.message || "Registracijos atšaukimas nepavyko!");
+    }
+  },
+     toggleFeedback(date) {
+     this.showFeedback[date] = !this.showFeedback[date];
+  },
     async approveVolunteer(volunteer, isApproved) {
     try {
       const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
@@ -386,6 +474,20 @@ export default {
 
       volunteer.isApproved = isApproved;
       volunteer.feedback = volunteer.feedback || "";
+
+       const eventDate = new Date(volunteer.eventDate);
+       const formattedDate = new Intl.DateTimeFormat("lt-LT", {
+       year: "numeric",
+       month: "2-digit",
+       day: "2-digit",
+       }).format(eventDate); 
+       
+      this.event.volunteerApprovalStatus[formattedDate] = isApproved ? "approved" : "rejected";
+      this.event.volunteerFeedback[formattedDate] = volunteer.feedback;
+
+      if (isApproved) {
+      this.event.volunteersCountPerDate[formattedDate]--;
+      }
 
       await this.fetchVolunteers(this.selectedDate);
     } catch (error) {
@@ -442,7 +544,7 @@ async fetchEventDetails() {
     this.event = eventData;
 
     this.event.volunteersCountPerDate = eventData.volunteersCountPerDate || {};
-    this.pendingApproval = eventData.pendingRegistrations || {};
+    this.pendingApproval = Object.assign({}, eventData.pendingRegistrations || {});
 
      this.eventDates.forEach(dateObj => {
       if (this.event.volunteersCountPerDate[dateObj.date] === undefined) {
@@ -536,7 +638,7 @@ async fetchEventDetails() {
       let result = await response.json();
       if (!response.ok) throw new Error(result?.message || "Registracija į veiklą nepavyko!");
 
-      this.pendingApproval[this.selectedDate] = true;
+      this.pendingApproval = Object.assign({}, this.pendingApproval, { [this.selectedDate]: true });
 
       this.toast.success("Registracija į veiklą pateikta!");
 
@@ -687,5 +789,53 @@ async fetchEventDetails() {
 .elevated-card:focus-within {
   transform: none !important;
   box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.fancy-link {
+  color: #1565c0;
+  font-weight: bold;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.3s ease-in-out;
+}
+
+.fancy-link:hover {
+  color: #0d47a1;
+  text-decoration: underline;
+  transform: scale(1.05);
+}
+
+.feedback-box {
+  background-color: #e3f2fd; 
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+}
+
+.feedback-text {
+  color: black; 
+  font-weight: normal; 
+  margin: 0;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.5s;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+
+.cancel-link {
+  color: #d32f2f; /* Red color */
+  margin-top: 8px;
+}
+
+.cancel-link:hover {
+  color: #b71c1c;
+  text-decoration: underline;
 }
 </style>

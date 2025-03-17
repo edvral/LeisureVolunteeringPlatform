@@ -33,7 +33,7 @@
                  
             <p class="text-subtitle-2">
             📅 <strong v-if="event.nextEventDate">{{ event.nextEventDate }}</strong>
-            <strong v-else class="text-red font-weight-bold">Patikslinkite datą !</strong>
+            <strong v-else class="text-red font-weight-bold">Patikslinkite datą!</strong>
             </p>
             
             <p class="text-subtitle-2">
