@@ -206,6 +206,73 @@ public class EventController : ControllerBase
         });
     }
 
+    [Authorize(Policy = "OrganizerOnly")]
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateEvent(int id, [FromBody] EventDTO eventDto)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        if (userId == 0) return Unauthorized(new { message = "Neautorizuotas naudotojas." });
+
+        var eventToUpdate = await _context.Events.FindAsync(id);
+        if (eventToUpdate == null) return NotFound(new { message = "Veikla nerasta!" });
+
+        if (eventToUpdate.OrganizerId != userId)
+            return Forbid();
+
+        if (eventDto == null)
+            return BadRequest(new { message = "Netinkami veiklos duomenys!" });
+
+        if (string.IsNullOrWhiteSpace(eventDto.Name) ||
+        string.IsNullOrWhiteSpace(eventDto.Description) ||
+        string.IsNullOrWhiteSpace(eventDto.Address) ||
+        string.IsNullOrWhiteSpace(eventDto.StartDate) ||
+        string.IsNullOrWhiteSpace(eventDto.EndDate) ||
+        string.IsNullOrWhiteSpace(eventDto.StartTime) ||
+        string.IsNullOrWhiteSpace(eventDto.EndTime) ||
+        eventDto.Latitude == 0 ||
+        eventDto.Longitude == 0 ||
+        eventDto.VolunteersCount < 1)
+        {
+            return UnprocessableEntity(new { message = "Visi laukai yra privalomi, o savanorių skaičius turi būti bent 1!" });
+        }
+
+        if (!DateTime.TryParseExact(eventDto.StartDate, "yyyy-MM-dd", null, DateTimeStyles.AssumeLocal, out DateTime startDate))
+            return UnprocessableEntity(new { message = "Netinkama pradžios data!" });
+
+        if (!DateTime.TryParseExact(eventDto.EndDate, "yyyy-MM-dd", null, DateTimeStyles.AssumeLocal, out DateTime endDate))
+            return UnprocessableEntity(new { message = "Netinkama pabaigos data!" });
+
+        if (startDate.Date < DateTime.Today)
+            return UnprocessableEntity(new { message = "Pradžios data negali būti praeityje!" });
+
+        if (endDate < startDate)
+            return UnprocessableEntity(new { message = "Pabaigos data negali būti ankstesnė nei pradžios data!" });
+
+        if (!TimeSpan.TryParse(eventDto.StartTime, out TimeSpan startTime) || !TimeSpan.TryParse(eventDto.EndTime, out TimeSpan endTime))
+            return UnprocessableEntity(new { message = "Netinkama laiko reikšmė!" });
+
+        if (endTime <= startTime)
+            return UnprocessableEntity(new { message = "Pabaigos laikas turi būti vėliau nei pradžios laikas!" });
+
+        if (startDate == DateTime.Today && startTime < DateTime.Now.TimeOfDay)
+            return UnprocessableEntity(new { message = "Jei veikla vyksta šiandien, pradžios laikas turi būti ateityje!" });
+
+        eventToUpdate.Name = eventDto.Name;
+        eventToUpdate.Description = eventDto.Description;
+        eventToUpdate.VolunteersCount = eventDto.VolunteersCount;
+        eventToUpdate.Address = eventDto.Address;
+        eventToUpdate.Latitude = eventDto.Latitude;
+        eventToUpdate.Longitude = eventDto.Longitude;
+        eventToUpdate.StartDate = startDate;
+        eventToUpdate.EndDate = endDate;
+        eventToUpdate.StartTime = startTime;
+        eventToUpdate.EndTime = endTime;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Veikla atnaujinta sėkmingai!" });
+    }
+
     [Authorize(Policy = "VolunteerOnly")]
     [HttpPost("register")]
     public async Task<IActionResult> RegisterForEvent([FromBody] RegisterForEventDTO registrationDto)
@@ -250,6 +317,28 @@ public class EventController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Registracija į savanorišką veiklą pateikta!", eventDate = registrationDto.EventDate, pendingApproval = true });
+    }
+
+    [Authorize(Policy = "OrganizerOnly")]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteEvent(int id)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        if (userId == 0) return Unauthorized(new { message = "Neautorizuotas naudotojas." });
+
+        var eventToDelete = await _context.Events.FindAsync(id);
+        if (eventToDelete == null) return NotFound(new { message = "Veikla nerasta!" });
+
+        if (eventToDelete.OrganizerId != userId)
+            return Forbid();
+
+        var eventRegistrations = _context.EventRegistrations.Where(er => er.EventId == id);
+        _context.EventRegistrations.RemoveRange(eventRegistrations);
+
+        _context.Events.Remove(eventToDelete);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Veikla sėkmingai ištrinta!" });
     }
 
     [Authorize(Policy = "OrganizerOnly")]

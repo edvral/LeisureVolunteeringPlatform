@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Home from "@/views/Home.vue";
 import EventCreate from "@/views/EventCreate.vue";
+import EventEdit from "@/views/EventEdit.vue";
 import Events from "@/views/Events.vue";
 import EventDetails from "@/views/EventDetails.vue";
 import Auth from '@/views/Auth.vue';
@@ -13,6 +14,7 @@ const routes = [
   { path: "/event/:id", component: EventDetails, props: true },
   { path: '/auth', component: Auth },
   { path: "/reset-password", component: ResetPassword },
+  { path: "/edit-event/:id", component: EventEdit, props : true }
 ];
 
 const router = createRouter({
