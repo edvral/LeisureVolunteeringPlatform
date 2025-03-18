@@ -492,7 +492,7 @@ export default {
       await this.fetchVolunteers(this.selectedDate);
     } catch (error) {
       console.error("Klaida patvirtinant savanorį:", error);
-      this.toast.error("Nepavyko atnaujinti registracijos būsenos.");
+      this.toast.error(error.message);
     }
 },
     async fetchVolunteers(date) {

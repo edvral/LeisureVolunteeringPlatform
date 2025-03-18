@@ -295,11 +295,9 @@ public class EventController : ControllerBase
         if (eventEntity == null)
             return NotFound(new { message = "Veikla nerasta!" });
 
-        int registeredCount = await _context.EventRegistrations
-            .CountAsync(er => er.EventId == registrationDto.EventId && er.EventDate == parsedEventDate);
-
-        if (registeredCount >= eventEntity.VolunteersCount)
-            return UnprocessableEntity(new { message = "Nebėra laisvų vietų šiai datai!" });
+        int approvedCount = await _context.EventRegistrations
+        .Where(er => er.EventId == registrationDto.EventId && er.EventDate == parsedEventDate && er.IsApproved == true)
+        .CountAsync();
 
         var newRegistration = new EventRegistration
         {
@@ -394,14 +392,13 @@ public class EventController : ControllerBase
         if (registration == null || registration.EventId != id)
             return NotFound(new { message = "Registracija nerasta!" });
 
-        if (registration.IsApproved == null && approvalDto.IsApproved == true)
-        {
-            int approvedCount = await _context.EventRegistrations
-                .Where(er => er.EventId == id && er.EventDate == registration.EventDate && er.IsApproved == true)
-                .CountAsync();
+        int approvedCount = await _context.EventRegistrations
+        .Where(er => er.EventId == id && er.EventDate == registration.EventDate && er.IsApproved == true)
+        .CountAsync();
 
-            if (approvedCount >= eventEntity.VolunteersCount)
-                return BadRequest(new { message = "Nebėra laisvų vietų šiai datai!" });
+        if (approvalDto.IsApproved == true && approvedCount >= eventEntity.VolunteersCount)
+        {
+            return BadRequest(new { message = "Nebėra laisvų vietų šiai datai!" });
         }
 
         registration.IsApproved = approvalDto.IsApproved;
