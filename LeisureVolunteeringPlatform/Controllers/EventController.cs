@@ -63,7 +63,11 @@ public class EventController : ControllerBase
                 EndDate = e.EndDate.ToString("yyyy-MM-dd"),
                 StartTime = e.StartTime.ToString(@"hh\:mm"),    
                 EndTime = e.EndTime.ToString(@"hh\:mm"),
-                e.OrganizerId
+                e.OrganizerId,
+                OrganizerEmail = _context.Users
+                .Where(u => u.Id == e.OrganizerId)
+                .Select(u => u.Email)
+                .FirstOrDefault()
             })
             .FirstOrDefaultAsync();
 
@@ -127,6 +131,7 @@ public class EventController : ControllerBase
             eventData.StartTime,
             eventData.EndTime,
             eventData.OrganizerId,
+            eventData.OrganizerEmail,
             VolunteersCountPerDate = volunteersPerDate.ToDictionary(v => v.Date, v => Math.Max(0, eventData.VolunteersCount - v.ApprovedCount)),
             PendingRegistrations = pendingRegistrations,
             VolunteerApprovalStatus = volunteerApprovalStatus,
@@ -359,18 +364,22 @@ public class EventController : ControllerBase
 
         var volunteers = await _context.EventRegistrations
             .Where(er => er.EventId == id && er.EventDate == parsedDate)
-            .Select(er => new
-            {
-                registrationId = er.Id,
-                er.Name,
-                er.Surname,
-                er.Age,
-                er.Comment,
-                er.IsApproved,
-                er.Feedback,
-                er.EventDate
-            })
-            .ToListAsync();
+            .Join(_context.Users,
+              er => er.UserId,
+              u => u.Id,
+              (er, u) => new
+              {
+                  er.Id,
+                  er.UserId,
+                  er.Name,
+                  er.Surname,
+                  er.Age,
+                  er.Comment,
+                  er.IsApproved,
+                  er.Feedback,
+                  Email = u.Email 
+              })
+        .ToListAsync();
 
         return Ok(volunteers);
     }

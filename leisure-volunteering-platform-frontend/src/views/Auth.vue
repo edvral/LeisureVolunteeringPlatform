@@ -307,7 +307,7 @@ let result;
           throw new Error(result?.message || "Registracija nepavyko");
         }
 
-        this.toast.success("Registracija sėkminga! Patikrinkite savo el. paštą.", {
+        this.toast.success("Registracija sėkminga! Patvirtinkite savo el. paštą.", {
         timeout: 5000, 
         });
 

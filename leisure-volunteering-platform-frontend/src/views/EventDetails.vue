@@ -6,11 +6,22 @@
           <v-icon left>mdi-arrow-left</v-icon> Atgal
         </v-btn>
       </v-col>
-    </v-row>
+
+    <v-col cols="auto" class="text-right">
+     <div v-if="event && event.organizerEmail" class="organizer-email fancy-email-box">
+      <span class="email-text">
+        📩 <strong>Del papildomos informacijos galite susisiekti: </strong> 
+        <a :href="'mailto:' + event.organizerEmail" class="fancy-email-link">
+        {{ event.organizerEmail }}
+        </a>
+      </span>
+     </div>
+    </v-col>
+   </v-row>
 
     <v-card v-if="event" class="pa-5">
       <v-card-title class="text-h5">{{ event.name }}</v-card-title>
-   
+
       <v-divider class="my-3"></v-divider>
 
       <div class="description-box">
@@ -169,6 +180,9 @@
                 <v-col cols="9">
                   <p class="font-weight-bold text-primary">👤 {{ volunteer.name }} {{ volunteer.surname }}</p>
                   <p class="text-caption">🎂 <strong>Amžius:</strong> {{ volunteer.age }}</p>
+                   <p class="text-caption">📧 <strong>El. paštas: </strong> 
+                   <a :href="'mailto:' + volunteer.email" class="volunteer-email-link">{{ volunteer.email }}</a>
+                   </p>
                   <p class="text-caption">📝 <strong>Papildoma informacija:</strong> {{ volunteer.comment || "-" }}</p>
                 </v-col>
               </v-row>
@@ -319,7 +333,7 @@ export default {
       showVolunteersModal: false,
       volunteers: [],
       toast: useToast(),
-      event: null,
+      event: {},
       userRole: null,
       userId: null,
       showRegistrationForm: false,
@@ -542,6 +556,7 @@ async fetchEventDetails() {
     }
 
     this.event = eventData;
+    this.organizerEmail = eventData.organizerEmail;
 
     this.event.volunteersCountPerDate = eventData.volunteersCountPerDate || {};
     this.pendingApproval = Object.assign({}, eventData.pendingRegistrations || {});
@@ -745,6 +760,18 @@ async fetchEventDetails() {
   transition: all 0.3s ease-in-out;
 }
 
+.volunteer-email-link {
+  color: #007BFF;
+  font-weight: bold;
+  text-decoration: none;
+  transition: color 0.3s ease-in-out;
+}
+
+.volunteer-email-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
 .volunteer-card {
   background-color: white;
   border-radius: 12px;
@@ -836,6 +863,40 @@ async fetchEventDetails() {
 
 .cancel-link:hover {
   color: #b71c1c;
+  text-decoration: underline;
+}
+
+.fancy-email-box {
+  background-color: #f5f5f5;
+  padding: 10px 15px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #ccc;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.fancy-email-box:hover {
+  transform: scale(1.03);
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.email-text {
+  font-size: 16px;
+  color: #333;
+}
+
+.fancy-email-link {
+  color: #007BFF;
+  font-weight: bold;
+  text-decoration: none;
+  transition: color 0.3s ease-in-out;
+}
+
+.fancy-email-link:hover {
+  color: #0056b3;
   text-decoration: underline;
 }
 </style>
