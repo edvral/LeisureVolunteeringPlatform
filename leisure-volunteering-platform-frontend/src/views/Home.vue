@@ -8,20 +8,20 @@
         <p class="text-h5 mb-14">Prisijunkite ir keiskite pasaulį kartu!</p>
        </div>
 
-        <v-row justify="center" class="mt-7 benefits">
-          <v-col cols="12" sm="4" class="text-center">
-            <v-icon size="50" color="primary">mdi-account-group</v-icon>
-            <p>Prisijunkite prie bendruomenės</p>
-          </v-col>
-          <v-col cols="12" sm="4" class="text-center">
-            <v-icon size="50" color="primary">mdi-hand-heart</v-icon>
-            <p>Padėkite kitiems</p>
-          </v-col>
-          <v-col cols="12" sm="4" class="text-center">
-            <v-icon size="50" color="primary">mdi-star-circle</v-icon>
-            <p>Gaukite įvertinimus ir ženklelius</p>
-          </v-col>
-        </v-row>
+     <v-row justify="center" class="mt-7 benefits">
+      <v-col cols="12" sm="4" class="text-center">
+      <v-icon size="50" :color="isDark ? 'white' : 'primary'">mdi-account-group</v-icon>
+     <p>Prisijunkite prie bendruomenės</p>
+    </v-col>
+    <v-col cols="12" sm="4" class="text-center">
+      <v-icon size="50" :color="isDark ? 'white' : 'primary'">mdi-hand-heart</v-icon>
+      <p>Padėkite kitiems</p>
+    </v-col>
+    <v-col cols="12" sm="4" class="text-center">
+      <v-icon size="50" :color="isDark ? 'white' : 'primary'">mdi-star-circle</v-icon>
+      <p>Gaukite įvertinimus ir ženklelius</p>
+    </v-col>
+  </v-row>
       </v-col>
 
       <v-col cols="12" md="6" class="d-flex justify-end image-container">
@@ -33,9 +33,17 @@
 </template>
 
 <script>
-import homepageImage from "@/assets/istockphoto-1389138499-612x612.jpg";
+import { useTheme } from 'vuetify';
+import { computed } from 'vue';
+import homepageImage from "@/assets/istockphoto-1389138499-612x612-removebg-preview.png";
 
 export default {
+  setup() {
+    const theme = useTheme();
+    const isDark = computed(() => theme.global.name.value === 'dark');
+
+    return { isDark };
+  },
   name: "AppHome",
   data() {
     return {

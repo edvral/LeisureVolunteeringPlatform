@@ -17,7 +17,7 @@
         :key="event.id" 
         cols="12" sm="6" md="4" lg="3"
       >
-        <v-card class="event-card" :class="{'organizer-event': event.organizerId === userId}">
+        <v-card class="event-card" :class="{'organizer-event': event.organizerId === userId, 'dark-event-card': isDark}">
         <v-card-title class="font-weight-bold">
           {{ event.name }} 
         </v-card-title>
@@ -45,7 +45,7 @@
 
         <v-card-actions>
             <v-btn v-if="event.organizerId === userId" icon @click="editEvent(event.id)">
-              <v-icon color="primary">mdi-pencil</v-icon>
+              <v-icon :color="isDark ? 'white' : 'primary'">mdi-pencil</v-icon>
             </v-btn>
 
             <v-btn v-if="event.organizerId === userId" icon @click="confirmDelete(event.id)">
@@ -54,7 +54,7 @@
 
             <v-spacer></v-spacer>
 
-          <v-btn color="primary" text @click="goToEventDetails(event.id)">+Daugiau</v-btn>
+          <v-btn :color="isDark ? 'white' : 'primary'" text @click="goToEventDetails(event.id)">+Daugiau</v-btn>
         </v-card-actions>
         </v-card>
       </v-col>
@@ -78,7 +78,15 @@
 
 <script>
 import { useToast } from "vue-toastification";
+import { useTheme } from 'vuetify';
+import { computed } from 'vue';
 export default {
+  setup() {
+    const theme = useTheme();
+    const isDark = computed(() => theme.global.name.value === 'dark');
+
+    return { isDark };
+  },
   name: "EventsPage",
   data() {
     return {
@@ -297,7 +305,7 @@ filteredEvents() {
   flex-direction: column;
   justify-content: space-between;
   padding: 16px;
-  background-color: white;
+  background-color: var(--v-theme-surface);
   border-radius: 8px;
   border: 2px solid transparent;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
@@ -310,9 +318,19 @@ filteredEvents() {
   border-color: #1976d2;
 }
 
+.dark-event-card {
+  border-color: black;
+  background-color: #1e1e1e !important;
+  color: #E0E0E0 !important; 
+}
+
+.dark-event-card:hover {
+  border-color: #1976d2;
+}
+
 .organizer-event {
   border: 2px solid #1976d2 !important;
-  background-color: white !important;
+  background-color: var(--v-theme-surface-lighten-1) !important;
   box-shadow: 0px 4px 10px rgba(25, 118, 210, 0.2);
 }
 

@@ -8,7 +8,7 @@
       </v-col>
 
     <v-col cols="auto" class="text-right">
-     <div v-if="event && event.organizerEmail" class="organizer-email fancy-email-box">
+     <div v-if="event && event.organizerEmail" class="organizer-email fancy-email-box" :class="{'dark-mode': isDark}">
       <span class="email-text">
         📩 <strong>Del papildomos informacijos galite susisiekti: </strong> 
         <a :href="'mailto:' + event.organizerEmail" class="fancy-email-link">
@@ -20,13 +20,14 @@
    </v-row>
 
     <v-card v-if="event" class="pa-5">
+    
       <v-card-title class="text-h5">{{ event.name }}</v-card-title>
 
       <v-divider class="my-3"></v-divider>
 
-      <div class="description-box">
-        <h3><v-icon left>mdi-information-outline</v-icon> Aprašymas</h3>
-        <p class="description-text">{{ event.description }}</p>
+      <div class="description-box" :class="{'dark-box': isDark, 'light-box': !isDark}">
+      <h3><v-icon left>mdi-information-outline</v-icon> Aprašymas</h3>
+      <p class="description-text">{{ event.description }}</p>
       </div>
 
       <v-divider class="my-3"></v-divider>
@@ -94,7 +95,7 @@
         </a>
 
         <transition name="fade">
-         <span v-if="showFeedback[dateObj.date]" class="feedback-box">
+         <span v-if="showFeedback[dateObj.date]" :class="{'feedback-box': true, 'dark-feedback-box': isDark}">
          <p class="feedback-text">
             {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
             <br>
@@ -127,7 +128,7 @@
       </a>
 
       <transition name="fade">
-        <div v-if="showFeedback[dateObj.date]" class="feedback-box">
+        <div v-if="showFeedback[dateObj.date]" :class="{'feedback-box': true, 'dark-feedback-box': isDark}">
           <p class="feedback-text">
             {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
           </p>
@@ -157,74 +158,85 @@
 
     <v-alert v-else type="error">Renginys nerastas.</v-alert>
 
-  <v-dialog v-model="showVolunteersModal" max-width="1000">
-  <v-card class="elevated-card">
+<v-dialog v-model="showVolunteersModal" max-width="1000">
+  <v-card class="elevated-card" :class="{'dark-mode': isDark}">
     <v-card-title class="text-h5 d-flex align-center">
-      <v-icon color="primary" class="mr-2">mdi-account-group</v-icon>
-      Savanorių sąrašas
+      <v-icon :color="isDark ? 'white' : 'primary'" class="mr-2">mdi-account-group</v-icon>
+      <span :class="{'dark-text': isDark}">Savanorių sąrašas</span>
     </v-card-title>
 
-    <v-divider></v-divider>
+    <v-divider :class="{'dark-divider': isDark}"></v-divider>
 
     <v-card-text>
       <v-container fluid>
         <v-row v-if="volunteers.length > 0">
           <v-col v-for="volunteer in volunteers" :key="volunteer.name" cols="12">
-            <v-card class="volunteer-card pa-3">
+            <v-card class="volunteer-card pa-3" :class="{'dark-card': isDark}">
               <v-row align="center">
                 <v-col cols="3" class="d-flex justify-center">
-                  <v-avatar color="blue" size="50" class="volunteer-avatar">
-                    <v-icon color="white">mdi-account</v-icon>
+                  <v-avatar :color="isDark ? 'grey darken-3' : 'blue'" size="50" class="volunteer-avatar">
+                    <v-icon :color="isDark ? 'white' : 'white'">mdi-account</v-icon>
                   </v-avatar>
                 </v-col>
                 <v-col cols="9">
-                  <p class="font-weight-bold text-primary">👤 {{ volunteer.name }} {{ volunteer.surname }}</p>
-                  <p class="text-caption">🎂 <strong>Amžius:</strong> {{ volunteer.age }}</p>
-                   <p class="text-caption">📧 <strong>El. paštas: </strong> 
-                   <a :href="'mailto:' + volunteer.email" class="volunteer-email-link">{{ volunteer.email }}</a>
+                  <p class="font-weight-bold text-primary" :class="{'dark-text': isDark}">
+                    👤 {{ volunteer.name }} {{ volunteer.surname }}
+                  </p>
+                  <p class="text-caption" :class="{'dark-text': isDark}">
+                    🎂 <strong>Amžius:</strong> {{ volunteer.age }}
+                  </p>
+                   <p class="text-caption" :class="{'dark-text': isDark}">
+                    📧 <strong>El. paštas: </strong> 
+                    <a :href="'mailto:' + volunteer.email" class="volunteer-email-link">
+                      {{ volunteer.email }}
+                    </a>
                    </p>
-                  <p class="text-caption">📝 <strong>Papildoma informacija:</strong> {{ volunteer.comment || "-" }}</p>
+                  <p class="text-caption" :class="{'dark-text': isDark}">
+                    📝 <strong>Papildoma informacija:</strong> {{ volunteer.comment || "-" }}
+                  </p>
                 </v-col>
               </v-row>
 
-             <v-divider class="my-2"></v-divider>
+             <v-divider class="my-2" :class="{'dark-divider': isDark}"></v-divider>
 
              <v-row>
-            <v-col cols="12">
-            <p v-if="volunteer.isApproved === true" class="text-success font-weight-bold">
-            ✅ Patvirtinta
-            </p>
+              <v-col cols="12">
+                <p v-if="volunteer.isApproved === true" class="text-success font-weight-bold">
+                  ✅ Patvirtinta
+                </p>
 
-            <p v-else-if="volunteer.isApproved === false" class="text-error font-weight-bold">
-            ❌ Atmesta
-            </p>
+                <p v-else-if="volunteer.isApproved === false" class="text-error font-weight-bold">
+                  ❌ Atmesta
+                </p>
 
-           <v-row v-if="userId === event.organizerId && volunteer.isApproved === null">
-            <v-col cols="12">
-              <v-row align="center">
-                <v-col cols="8">
-                <v-textarea
-                  v-model="volunteer.feedback"
-                  label="📝 Palikti atsiliepimą"
-                  outlined
-                  dense
-                ></v-textarea>
-              </v-col>
-              <v-col cols="4" class="d-flex align-center justify-end">
-                <v-btn color="success" small class="approve-btn" @click="approveVolunteer(volunteer, true)">
-                  <v-icon left>mdi-check</v-icon> Patvirtinti
-                </v-btn>
-                <v-btn color="red darken-1" small class="ml-2 reject-btn" @click="approveVolunteer(volunteer, false)">
-            <v-icon left>mdi-close</v-icon> Atmesti
-          </v-btn>
-        </v-col>
-      </v-row>
-  </v-col>
-</v-row>
-
-<p v-if="volunteer.feedback" class="text-caption text-grey feedback-text">
-  📝 Atsiliepimas: <em>{{ volunteer.feedback }}</em>
-</p>
+                <v-row v-if="userId === event.organizerId && volunteer.isApproved === null">
+                  <v-col cols="12">
+                    <v-row align="center">
+                      <v-col cols="8">
+                        <v-textarea
+                          v-model="volunteer.feedback"
+                          label="📝 Palikti atsiliepimą"
+                          outlined
+                          dense
+                          hide-details
+                          :class="{'dark-input': isDark}"
+                        ></v-textarea>
+                      </v-col>
+                      <v-col cols="4" class="d-flex align-center justify-end">
+                        <v-btn color="success" small class="approve-btn" @click="approveVolunteer(volunteer, true)">
+                          <v-icon left>mdi-check</v-icon> Patvirtinti
+                        </v-btn>
+                        <v-btn color="red darken-1" small class="ml-2 reject-btn" @click="approveVolunteer(volunteer, false)">
+                          <v-icon left>mdi-close</v-icon> Atmesti
+                        </v-btn>
+                      </v-col>
+                    </v-row>
+                  </v-col>
+                </v-row>
+     
+    <p v-if="volunteer.feedback" class="text-caption text-grey feedback-text no">
+      📝 Atsiliepimas: <em>{{ volunteer.feedback }}</em>
+    </p>
       </v-col>
       </v-row>
             </v-card>
@@ -254,7 +266,7 @@
 <v-dialog v-model="showRegistrationForm" max-width="500">
   <v-card class="elevated-card">
     <v-card-title class="text-h5 d-flex align-center">
-      <v-icon color="primary" class="mr-2">mdi-account-plus</v-icon>
+      <v-icon :color="isDark ? 'white' : 'primary'" class="mr-2">mdi-account-plus</v-icon>
       Registracija savanoriškai veiklai
     </v-card-title>
 
@@ -324,8 +336,16 @@
 /* global google */
 import { useToast } from "vue-toastification";
 import loader from "@/utils/GoogleMapsLoader";
+import { useTheme } from 'vuetify';
+import { computed } from 'vue';
 
 export default {
+   setup() {
+    const theme = useTheme();
+    const isDark = computed(() => theme.global.name.value === 'dark');
+
+    return { isDark };
+  },
   name: "EventDetails",
   data() {
     return {
@@ -523,7 +543,8 @@ export default {
       
       this.volunteers = volunteersData.map(v => ({
         ...v,
-        registrationId: v.registrationId  
+        registrationId: v.id,
+        eventDate: v.eventDate
       }));
 
       this.showVolunteersModal = true;
@@ -703,10 +724,26 @@ async fetchEventDetails() {
 }
 
 .description-box {
-  background-color: #f5f5f5;
   padding: 16px;
   border-radius: 8px;
   margin: 12px 0;
+}
+
+.light-box {
+  background-color: #f5f5f5 !important; 
+  color: #424242 !important;
+}
+
+.dark-box {
+  background-color: #2E2E2E !important; 
+  color: #E0E0E0 !important; 
+  border: 2px solid #444;
+  color: #FFFFFF !important;
+}
+
+.dark-box h3,
+.dark-box p {
+  color: #FFFFFF !important; /* Ensure headers and paragraphs are also white */
 }
 
 .description-text {
@@ -843,10 +880,20 @@ async fetchEventDetails() {
   align-items: flex-start;
 }
 
+.dark-feedback-box {
+  background-color: #2E2E2E !important; 
+  color: #E0E0E0 !important; 
+  border: 1px solid #555; 
+}
+
 .feedback-text {
   color: black; 
   font-weight: normal; 
-  margin: 0;
+  margin: 0px
+}
+
+.dark-feedback-box .feedback-text {
+  color: #E0E0E0 !important;
 }
 
 .fade-enter-active, .fade-leave-active {
@@ -857,7 +904,7 @@ async fetchEventDetails() {
 }
 
 .cancel-link {
-  color: #d32f2f; /* Red color */
+  color: #d32f2f; 
   margin-top: 8px;
 }
 
@@ -867,6 +914,7 @@ async fetchEventDetails() {
 }
 
 .fancy-email-box {
+  margin-top: 10px;
   background-color: #f5f5f5;
   padding: 10px 15px;
   border-radius: 10px;
@@ -881,6 +929,27 @@ async fetchEventDetails() {
 .fancy-email-box:hover {
   transform: scale(1.03);
   box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dark-mode {
+  background-color: black !important; 
+  color: #E0E0E0 !important;
+  border: 1px solid #444;
+  box-shadow: 2px 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .email-text {
+  color: #E0E0E0 !important;
+}
+
+.dark-mode .fancy-email-link {
+  color: #90CAF9 !important; 
+  text-decoration: none;
+}
+
+.dark-mode .fancy-email-link:hover {
+  color: #64B5F6 !important; 
+  text-decoration: underline;
 }
 
 .email-text {
@@ -898,5 +967,34 @@ async fetchEventDetails() {
 .fancy-email-link:hover {
   color: #0056b3;
   text-decoration: underline;
+}
+
+.dark-mode {
+  background-color: #2e2e2e !important; 
+  color: white !important;
+}
+
+.dark-text {
+  color: white !important;
+}
+
+.dark-divider {
+  border-color: #555 !important; 
+}
+
+.dark-card {
+  background-color: #3a3a3a !important; 
+  color: white !important;
+  border: 1px solid #555 !important;
+}
+
+.dark-input {
+  background-color: #424242 !important;
+  color: white !important;
+  border: 1px solid #555 !important;
+}
+
+.dark-input::placeholder {
+  color: #bbb !important;
 }
 </style>

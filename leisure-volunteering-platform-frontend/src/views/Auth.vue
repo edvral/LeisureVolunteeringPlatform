@@ -61,7 +61,7 @@
                   </v-card-text>
                 <v-card-actions>
                   <v-btn text @click="showForgotPasswordDialog = false">Atšaukti</v-btn>
-                  <v-btn color="primary" @click="sendPasswordResetEmail">Siųsti</v-btn>
+                  <v-btn :color="isDark ? 'light-blue' : 'primary'" @click="sendPasswordResetEmail">Siųsti</v-btn>
                 </v-card-actions>
               </v-card>
             </v-dialog>
@@ -103,7 +103,7 @@
                  @click:append-inner="togglePassword('confirm')">
                 </v-text-field>
 
-                <p class="role-label">Registruotis kaip:</p>
+                <p class="role-label" :class="{'dark-role-label': isDark}">Registruotis kaip:</p>
 
                 <v-radio-group v-model="registerData.role" row>
                   <v-radio label="Savanoris" value="Volunteer"></v-radio>
@@ -117,8 +117,8 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" md="6" class="info-section">
-        <div class="info-box">
+      <v-col cols="12" md="6" class="info-section" :class="{'dark-info-section': isDark}">
+        <div class="info-box" :class="{'dark-mode': isDark}">
           <h2 v-if="showLogin">Dar neturite paskyros?</h2>
           <h2 v-else>Jau turite paskyrą?</h2>
           <p v-if="showLogin">Prisijunkite ir pradėkite savo savanorišką veiklą!</p>
@@ -137,7 +137,7 @@
           Jūsų el. paštas buvo sėkmingai patvirtintas. Dabar galite prisijungti!
         </v-card-text>
         <v-card-actions>
-          <v-btn color="primary" @click="showVerifiedModal = false">Gerai</v-btn>
+          <v-btn :color="isDark ? 'light-blue' : 'primary'" @click="showVerifiedModal = false">Gerai</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -147,7 +147,15 @@
 
 <script>
 import { useToast } from "vue-toastification";
+import { useTheme } from 'vuetify';
+import { computed } from 'vue';
 export default {
+   setup() {
+    const theme = useTheme();
+    const isDark = computed(() => theme.global.name.value === 'dark');
+
+    return { isDark };
+  },
   name: "AuthPage",
   data() {
     return {
@@ -375,6 +383,11 @@ let result;
   border-radius: 10px;
 }
 
+.dark-info-section {
+  background: black !important; /* Black background in dark mode */
+  color: white !important; /* Ensuring text stays white */
+}
+
 .info-box {
   max-width: 350px;
 }
@@ -418,7 +431,11 @@ let result;
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 5px;
-  margin-top: 2px; /* Adjust spacing above */
-  color: #333; /* Darker text for better visibility */
+  margin-top: 2px; 
+  color: #333; 
+}
+
+.dark-role-label {
+  color: white !important;
 }
 </style>

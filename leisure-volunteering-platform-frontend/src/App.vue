@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app :theme="theme">
     <v-app-bar app color="primary" dark>
       <v-container class="d-flex align-center">
         
@@ -15,21 +15,24 @@
           <v-tab class="mx-1 nav-tab" @click="navigateTo('/events')">Artimiausios savanoriškos veiklos</v-tab>
         </v-tabs>
 
-        <div v-if="!isMobile" class="d-flex align-center ">
+        <!-- 🌙 Dark Mode Toggle -->
+        <v-btn @click="toggleTheme" icon>
+          <v-icon>{{ isDark ? 'mdi-weather-night' : 'mdi-white-balance-sunny' }}</v-icon>
+        </v-btn>
+
+        <div v-if="!isMobile" class="d-flex align-center">
           <v-btn v-if="!isAuthenticated" color="white" class="login-button mx-3" elevation="4" large outlined @click="navigateTo('/auth')">
             <v-icon left>mdi-login</v-icon> Prisijungti
           </v-btn>
 
-         <div v-else class="d-flex flex-column align-center ml-2">
-          <v-btn color="red" class="logout-button mx-3" elevation="4" large outlined @click="handleLogout">
-          <v-icon left>mdi-logout</v-icon> Atsijungti
-        </v-btn>
-
-        <small class="mt-1 text-center username-text">
-         Prisijungęs kaip: <strong>{{ username }}</strong>
-        </small>
-        </div>
-        
+          <div v-else class="d-flex flex-column align-center ml-2">
+            <v-btn color="red" class="logout-button mx-3" elevation="4" large outlined @click="handleLogout">
+              <v-icon left>mdi-logout</v-icon> Atsijungti
+            </v-btn>
+            <small class="mt-1 text-center username-text">
+              Prisijungęs kaip: <strong>{{ username }}</strong>
+            </small>
+          </div>
         </div>
       </v-container>
     </v-app-bar>
@@ -74,7 +77,28 @@
 
 <script>
 import { useToast } from "vue-toastification";
+import { useTheme } from 'vuetify';
+import { computed, onMounted } from 'vue';
 export default {
+  setup() {
+    const theme = useTheme();
+
+    const isDark = computed(() => theme.global.name.value === 'dark');
+
+    function toggleTheme() {
+      theme.global.name.value = isDark.value ? 'light' : 'dark';
+      localStorage.setItem('theme', theme.global.name.value);
+    }
+
+    onMounted(() => {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme) {
+        theme.global.name.value = savedTheme;
+      }
+    });
+
+    return { isDark, toggleTheme };
+  },
   name: "App",
   data() {
     return {

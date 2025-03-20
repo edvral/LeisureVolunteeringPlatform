@@ -377,6 +377,7 @@ public class EventController : ControllerBase
                   er.Comment,
                   er.IsApproved,
                   er.Feedback,
+                  EventDate = er.EventDate.ToString("yyyy-MM-dd"),
                   Email = u.Email 
               })
         .ToListAsync();
