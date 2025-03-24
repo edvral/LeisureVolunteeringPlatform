@@ -214,7 +214,6 @@ filteredEvents() {
               }
             }
 
-            console.log(`✅ Event: ${event.name}, Date: ${nextDate}, Available Spots: ${availableSpots}`);
             break;
           }
 

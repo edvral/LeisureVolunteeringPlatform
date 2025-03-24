@@ -62,8 +62,16 @@
         outlined
         class="fancy-button-volunteers"
         @click="fetchVolunteers(dateObj.date)"
-      > 
-        <v-icon left>mdi-account-group</v-icon> Savanorių sąrašas
+      >
+
+      <v-icon 
+      v-if="unseenVolunteers[dateObj.date]" 
+      class="alert-icon-left"
+      >
+      mdi-alert-circle
+      </v-icon>
+
+      <v-icon left>mdi-account-group</v-icon> Savanorių sąrašas
       </v-btn>
 
       <v-btn 
@@ -349,6 +357,7 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      unseenVolunteers: {},
       showFeedback: {},
       showVolunteersModal: false,
       volunteers: [],
@@ -548,6 +557,8 @@ export default {
       }));
 
       this.showVolunteersModal = true;
+      this.unseenVolunteers[date] = false;
+      localStorage.setItem(`unseen-${this.event.id}`, JSON.stringify(this.unseenVolunteers));
     } catch (error) {
       console.error("Error fetching volunteers:", error);
     }
@@ -581,6 +592,11 @@ async fetchEventDetails() {
 
     this.event.volunteersCountPerDate = eventData.volunteersCountPerDate || {};
     this.pendingApproval = Object.assign({}, eventData.pendingRegistrations || {});
+
+    const storedUnseen = localStorage.getItem(`unseen-${eventData.id}`);
+    if (storedUnseen) {
+      this.unseenVolunteers = JSON.parse(storedUnseen);
+    }
 
      this.eventDates.forEach(dateObj => {
       if (this.event.volunteersCountPerDate[dateObj.date] === undefined) {
@@ -682,6 +698,15 @@ async fetchEventDetails() {
 
       await this.fetchEventDetails();
 
+     const formattedDate = new Intl.DateTimeFormat("lt-LT", {
+     year: "numeric",
+     month: "2-digit",
+     day: "2-digit"
+    }).format(new Date(this.selectedDate));
+
+    this.unseenVolunteers[formattedDate] = true;
+    localStorage.setItem(`unseen-${this.event.id}`, JSON.stringify(this.unseenVolunteers));
+
     } catch (error) {
       console.error("Registracijos klaida:", error);
       this.toast.error(error.message || "Registracija nepavyko!");
@@ -771,6 +796,8 @@ async fetchEventDetails() {
   letter-spacing: 0.5px;
   border-radius: 20px; 
   transition: all 0.3s ease-in-out;
+  position: relative;
+  padding-left: 28px !important;
 }
 
 .fancy-button-volunteers:hover {
@@ -996,5 +1023,32 @@ async fetchEventDetails() {
 
 .dark-input::placeholder {
   color: #bbb !important;
+}
+
+.alert-icon-left {
+  position: absolute;
+  left: 8px;
+  top: 30%;
+  transform: translateY(-50%);
+  color: #FFD600;
+  border-radius: 50%;
+  padding: 2px;
+  font-size: 18px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>
