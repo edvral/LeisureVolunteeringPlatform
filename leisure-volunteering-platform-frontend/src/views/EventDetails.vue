@@ -122,27 +122,33 @@
   </a>
       </p>
 
-      <p v-else-if="event.volunteerApprovalStatus[dateObj.date] === 'rejected' && userRole === 'Volunteer'" class="text-error font-weight-bold">
-      ❌ Organizatorius atšaukė jūsų registraciją!
-      <br>
-      <br>
-      <a 
-        href="#" 
-        class="fancy-link" 
-        @click.prevent="toggleFeedback(dateObj.date)"
-      >   
-        <v-icon left>{{ showFeedback[dateObj.date] ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon> 
-        {{ showFeedback[dateObj.date] ? "Slėpti Atsiliepimą" : "Peržiūrėti Atsiliepimą" }}
-      </a>
+     <div v-else-if="event.volunteerApprovalStatus[dateObj.date] === 'rejected' && userRole === 'Volunteer'" class="text-error font-weight-bold">
+     ❌ Organizatorius atšaukė jūsų registraciją!
+    <br><br>
 
-      <transition name="fade">
-        <div v-if="showFeedback[dateObj.date]" :class="{'feedback-box': true, 'dark-feedback-box': isDark}">
-          <p class="feedback-text">
-            {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
-          </p>
-        </div>
-      </transition>
-    </p>
+    <a 
+      href="#" 
+      class="fancy-link" 
+      @click.prevent="toggleFeedback(dateObj.date)"
+    >   
+      <v-icon left>{{ showFeedback[dateObj.date] ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon> 
+      {{ showFeedback[dateObj.date] ? "Slėpti Atsiliepimą" : "Peržiūrėti Atsiliepimą" }}
+    </a>
+
+    <transition name="fade">
+      <div v-if="showFeedback[dateObj.date]" :class="{'feedback-box': true, 'dark-feedback-box': isDark}">
+       <p class="feedback-text">
+          {{ event.volunteerFeedback[dateObj.date] || "Nėra atsiliepimo" }}
+        </p>
+      </div>
+    </transition>
+
+   <div v-if="dateObj.hoursLeft > 24" class="mt-3">
+      <v-btn color="warning" small outlined class="register-again" @click="reapplyToEvent(dateObj.date)">
+        <v-icon left>mdi-refresh</v-icon> Registruotis dar kartą
+      </v-btn>
+    </div>
+  </div>
 
       <p v-else-if="userRole === 'Volunteer' && (event.volunteersCountPerDate[dateObj.date] <= 0 || dateObj.hoursLeft <= 24)" class="text-error font-weight-bold">
         🚫 Registracija šiai savanoriškai veiklai baigta.
@@ -357,6 +363,8 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      isReapply: false,
+      reapplyRegistrationId: null,
       unseenVolunteers: {},
       showFeedback: {},
       showVolunteersModal: false,
@@ -449,6 +457,52 @@ export default {
 }
 },
   methods: {
+    async reapplyToEvent(date) {
+  try {
+    const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+    const userId = this.getUserIdFromToken();
+
+    let formattedDate = date;
+    if (typeof date === 'string' && date.includes(".")) {
+      const [day, month, year] = date.split(".");
+      formattedDate = `${year}-${month}-${day}`;
+    }
+
+    const response = await fetch(`https://localhost:7177/api/events/event-registrations/${this.event.id}/user/${userId}/date/${formattedDate}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      // Safely try to extract error message if it's a JSON
+      let errorMessage = "Nepavyko gauti registracijos duomenų!";
+      try {
+        const errorJson = await response.json();
+        if (errorJson?.message) errorMessage = errorJson.message;
+      } catch (err) {
+        // Probably not JSON – ignore
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+
+    this.registrationData.name = result.name || '';
+    this.registrationData.surname = result.surname || '';
+    this.registrationData.age = result.age || '';
+    this.registrationData.comment = result.comment || '';
+
+    this.selectedDate = date;
+    this.showRegistrationForm = true;
+    this.isReapply = true;
+    this.reapplyRegistrationId = result.id;
+
+  } catch (error) {
+    console.error("Klaida gaunant registracijos duomenis:", error);
+    this.toast.error(error.message || "Nepavyko gauti registracijos informacijos!");
+  }
+},
    async cancelRegistration(eventDate) {
     try {
       const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
@@ -527,6 +581,11 @@ export default {
        
       this.event.volunteerApprovalStatus[formattedDate] = isApproved ? "approved" : "rejected";
       this.event.volunteerFeedback[formattedDate] = volunteer.feedback;
+
+      const volunteerUserId = volunteer.userId || volunteer.volunteerId;
+      if (volunteerUserId) {
+      localStorage.setItem(`seen-response-${this.event.id}-user-${volunteerUserId}`, "false");
+      }
 
       if (isApproved) {
       this.event.volunteersCountPerDate[formattedDate]--;
@@ -651,67 +710,99 @@ async fetchEventDetails() {
       return null;
     }
   },
- async submitRegistration() {
-    if (!this.registrationData.name || !this.registrationData.surname || !this.registrationData.age) {
-      this.toast.error("Užpildykite visus privalomus laukus!");
+async submitRegistration() {
+  if (!this.registrationData.name || !this.registrationData.surname || !this.registrationData.age) {
+    this.toast.error("Užpildykite visus privalomus laukus!");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+    if (!token) {
+      this.toast.error("Jūs turite būti prisijungęs!");
       return;
     }
 
-    try {
-      const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
-      if (!token) {
-        this.toast.error("Jūs turite būti prisijungęs!");
-        return;
-      }
+    const userId = this.getUserIdFromToken();
+    if (!userId) {
+      this.toast.error("Nepavyko gauti vartotojo ID!");
+      return;
+    }
 
-      const userId = this.getUserIdFromToken();
-      if (!userId) {
-        this.toast.error("Nepavyko gauti vartotojo ID!");
-        return;
-      }
+    const formattedDate = this.selectedDate.split('.').reverse().join('-');
 
-      const response = await fetch("https://localhost:7177/api/events/register", {
-        method: "POST",
-        headers: { 
+    const checkResponse = await fetch(`https://localhost:7177/api/events/event-registrations/${this.event.id}/user/${userId}/date/${formattedDate}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    let registrationExists = false;
+    let registrationId = null;
+
+    if (checkResponse.ok) {
+      const existing = await checkResponse.json();
+      registrationExists = true;
+      registrationId = existing.id;
+    }
+
+    const payload = {
+      userId: userId,
+      eventId: this.event.id,
+      eventDate: this.selectedDate,
+      name: this.registrationData.name,
+      surname: this.registrationData.surname,
+      age: this.registrationData.age,
+      comment: this.registrationData.comment,
+    };
+
+    let response;
+
+    if (registrationExists) {
+      response = await fetch(`https://localhost:7177/api/events/event-registrations/${registrationId}/update`, {
+        method: "PUT",
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          userId: userId,
-          eventId: this.event.id,
-          eventDate: this.selectedDate,
-          name: this.registrationData.name,
-          surname: this.registrationData.surname,
-          age: this.registrationData.age,
-          comment: this.registrationData.comment,
-        }),
+        body: JSON.stringify(payload),
       });
+    } else {
+      response = await fetch("https://localhost:7177/api/events/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
-      let result = await response.json();
-      if (!response.ok) throw new Error(result?.message || "Registracija į veiklą nepavyko!");
+    const result = await response.json();
 
-      this.pendingApproval = Object.assign({}, this.pendingApproval, { [this.selectedDate]: true });
+    if (!response.ok) throw new Error(result?.message || "Registracija į veiklą nepavyko!");
 
-      this.toast.success("Registracija į veiklą pateikta!");
+    this.toast.success(result.message || "Registracija į veiklą pateikta!");
+    this.showRegistrationForm = false;
 
-      this.showRegistrationForm = false;
+    this.pendingApproval = Object.assign({}, this.pendingApproval, { [this.selectedDate]: true });
 
-      await this.fetchEventDetails();
+    await this.fetchEventDetails();
 
-     const formattedDate = new Intl.DateTimeFormat("lt-LT", {
-     year: "numeric",
-     month: "2-digit",
-     day: "2-digit"
+    const formattedLocalDate = new Intl.DateTimeFormat("lt-LT", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
     }).format(new Date(this.selectedDate));
 
-    this.unseenVolunteers[formattedDate] = true;
+    this.unseenVolunteers[formattedLocalDate] = true;
     localStorage.setItem(`unseen-${this.event.id}`, JSON.stringify(this.unseenVolunteers));
 
-    } catch (error) {
-      console.error("Registracijos klaida:", error);
-      this.toast.error(error.message || "Registracija nepavyko!");
-    }
-  },
+  } catch (error) {
+    console.error("Registracijos klaida:", error);
+    this.toast.error(error.message || "Registracija nepavyko!");
+  }
+},
  getUserIdFromToken() {
   const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
   if (!token) return null;
@@ -783,6 +874,19 @@ async fetchEventDetails() {
   letter-spacing: 0.5px;
   border-radius: 20px; 
   transition: all 0.3s ease-in-out;
+}
+
+.register-again{
+  font-weight: bold;
+  text-transform: none;
+  letter-spacing: 0.5px;
+  border-radius: 20px; 
+  transition: all 0.3s ease-in-out;
+}
+
+.register-again:hover{
+  background-color:rgb(169, 133, 36) !important;
+  color: white !important;
 }
 
 .fancy-button:hover {

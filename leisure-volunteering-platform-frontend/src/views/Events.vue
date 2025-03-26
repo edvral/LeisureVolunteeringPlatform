@@ -19,9 +19,16 @@
       >
         <v-card class="event-card" :class="{'organizer-event': event.organizerId === userId, 'dark-event-card': isDark}">
         <v-card-title class="font-weight-bold">
-          {{ event.name }} 
-        </v-card-title>
+          <span class="flex-grow-1">{{ event.name }}</span>
 
+          <v-icon
+    v-if="volunteerResponses[event.id] === true"
+    class="alert-icon ml-2"
+  >
+    mdi-alert-circle
+  </v-icon>
+
+        </v-card-title>
         <v-card-text>
           <p class="text-truncate description">{{ event.description }}</p>
     
@@ -90,6 +97,7 @@ export default {
   name: "EventsPage",
   data() {
     return {
+      volunteerResponses: {},
       toast: useToast(),
       events: [], 
       userRole: null,
@@ -183,59 +191,67 @@ filteredEvents() {
     const now = new Date(); 
     now.setSeconds(0, 0); 
 
-    const enrichedEvents = await Promise.all(
-      data.map(async (event) => {
-        const start = new Date(event.startDate);
-        const end = new Date(event.endDate);
-        let nextDate = null;
-        let availableSpots = event.volunteersCount; 
+const volunteerResponses = {};
 
-        while (start <= end) {
-          const eventDate = new Date(start);
-          eventDate.setHours(0, 0, 0, 0);
+const enrichedEvents = await Promise.all(
+  data.map(async (event) => {
+    let nextDate = null;
+    let availableSpots = event.volunteersCount;
 
-          const eventStartTime = new Date(eventDate);
-          const [startHour, startMinute] = event.startTime.split(":");
-          eventStartTime.setHours(startHour, startMinute, 0, 0);
+    const eventDetailsResponse = await fetch(`https://localhost:7177/api/events/${event.id}`);
+    const eventDetails = eventDetailsResponse.ok ? await eventDetailsResponse.json() : {};
 
-          if (eventStartTime > now) {
-            nextDate = new Intl.DateTimeFormat("lt-LT", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            }).format(eventDate);
+    if (this.userRole === 'Volunteer') {
+      const seen = localStorage.getItem(`seen-response-${event.id}-user-${this.userId}`);
+      if (seen === "false") {
+        volunteerResponses[event.id] = true;
+        console.log("Should show icon for event:", event.id);
+        console.log(`Seen for event ${event.id}:`, seen);
 
-            const eventDetailsResponse = await fetch(`https://localhost:7177/api/events/${event.id}`);
-            if (eventDetailsResponse.ok) {
-              const eventDetails = await eventDetailsResponse.json();
+      }
+    }
 
-              if (eventDetails.volunteersCountPerDate && eventDetails.volunteersCountPerDate[nextDate] !== undefined) {
-                availableSpots = Math.max(0, eventDetails.volunteersCountPerDate[nextDate]);
-              }
-            }
+    const start = new Date(event.startDate);
+    const end = new Date(event.endDate);
+    const now = new Date();
+    now.setSeconds(0, 0);
+    while (start <= end) {
+      const eventDate = new Date(start);
+      const eventStartTime = new Date(eventDate);
+      const [startHour, startMinute] = event.startTime.split(":");
+      eventStartTime.setHours(startHour, startMinute, 0, 0);
 
-            break;
-          }
-
-          start.setDate(start.getDate() + 1);
+      if (eventStartTime > now) {
+        nextDate = new Intl.DateTimeFormat("lt-LT").format(eventDate);
+        if (eventDetails.volunteersCountPerDate?.[nextDate] !== undefined) {
+          availableSpots = Math.max(0, eventDetails.volunteersCountPerDate[nextDate]);
         }
+        break;
+      }
+      start.setDate(start.getDate() + 1);
+    }
 
-        return {
-          ...event,
-          nextEventDate: nextDate,
-          nextEventSpots: availableSpots,
-        };
-      })
-    );
+    return {
+      ...event,
+      nextEventDate: nextDate,
+      nextEventSpots: availableSpots
+    };
+  })
+);
 
-    this.events = enrichedEvents;
+this.events = enrichedEvents;
+this.volunteerResponses = volunteerResponses;
   } catch (error) {
     console.error("Klaida gaunant veiklas:", error);
   }
 },
-    goToEventDetails(eventId) {
-      this.$router.push(`/event/${eventId}`);
-    },
+   goToEventDetails(eventId) {
+  if (this.volunteerResponses[eventId]) {
+     localStorage.setItem(`seen-response-${eventId}-user-${this.userId}`, "true");
+     this.volunteerResponses[eventId] = false;
+  }
+  this.$router.push(`/event/${eventId}`);
+},
     goToCreateEvent() {
       this.$router.push("/create-event"); 
     },
@@ -258,9 +274,9 @@ filteredEvents() {
     }
   },
   mounted() {
-    this.fetchEvents();
     this.userRole = this.getUserRoleFromToken();
     this.userId = Number(this.getUserIdFromToken());
+    this.fetchEvents(); 
   },
 };
 </script>
@@ -337,5 +353,32 @@ filteredEvents() {
   transform: translateY(-3px);
   box-shadow: 0px 6px 15px rgba(25, 118, 210, 0.3);
   border-color: #1565c0;
+}
+
+.alert-icon {
+  position: absolute;
+  left: 25px;
+  top: 83%;
+  transform: translateY(-50%);
+  color: #FFD600;
+  border-radius: 50%;
+  padding: 2px;
+  font-size: 18px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>

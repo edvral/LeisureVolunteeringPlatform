@@ -322,6 +322,78 @@ public class EventController : ControllerBase
         return Ok(new { message = "Registracija į savanorišką veiklą pateikta!", eventDate = registrationDto.EventDate, pendingApproval = true });
     }
 
+    [Authorize(Policy = "VolunteerOnly")]
+    [HttpPost("{eventId}/reapply/{eventDate}")]
+    public async Task<IActionResult> ReapplyToEvent(int eventId, string eventDate)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+        if (userId == 0) return Unauthorized();
+
+        if (!DateTime.TryParseExact(eventDate, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.AssumeLocal, out DateTime parsedDate))
+            return BadRequest(new { message = "Netinkamas datos formatas!" });
+
+        var registration = await _context.EventRegistrations
+            .FirstOrDefaultAsync(er => er.EventId == eventId && er.UserId == userId && er.EventDate == parsedDate);
+
+        if (registration == null)
+            return NotFound(new { message = "Registracija nerasta!" });
+
+        if (registration.IsApproved != false)
+            return BadRequest(new { message = "Tik atmestos registracijos gali būti pakartotinai pateiktos!" });
+
+        registration.IsApproved = null;
+        registration.Feedback = null;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Jūsų registracija buvo pakartotinai pateikta!" });
+    }
+
+    [Authorize(Policy = "VolunteerOnly")]
+    [HttpGet("event-registrations/{eventId}/user/{userId}/date/{eventDate}")]
+    public async Task<IActionResult> GetUserRegistration(int eventId, int userId, string eventDate)
+    {
+        if (!DateTime.TryParseExact(eventDate, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.AssumeLocal, out DateTime parsedDate))
+            return BadRequest(new { message = "Netinkamas datos formatas!" });
+
+        var registration = await _context.EventRegistrations
+            .FirstOrDefaultAsync(r => r.EventId == eventId && r.UserId == userId && r.EventDate == parsedDate);
+
+        if (registration == null)
+            return NotFound(new { message = "Registracija nerasta!" });
+
+        return Ok(new
+        {
+            registration.Id,
+            registration.Name,
+            registration.Surname,
+            registration.Age,
+            registration.Comment
+        });
+    }
+
+    [Authorize(Policy = "VolunteerOnly")]
+    [HttpPut("event-registrations/{registrationId}/update")]
+    public async Task<IActionResult> UpdateRegistration(int registrationId, [FromBody] RegisterForEventDTO dto)
+    {
+        var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+
+        var registration = await _context.EventRegistrations.FindAsync(registrationId);
+        if (registration == null || registration.UserId != userId)
+            return NotFound(new { message = "Registracija nerasta!" });
+
+        registration.Name = dto.Name;
+        registration.Surname = dto.Surname;
+        registration.Age = dto.Age;
+        registration.Comment = dto.Comment;
+        registration.IsApproved = null;
+        registration.Feedback = null;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Registracija atnaujinta ir pateikta iš naujo!" });
+    }
+
     [Authorize(Policy = "OrganizerOnly")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
