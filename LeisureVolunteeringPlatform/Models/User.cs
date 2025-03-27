@@ -11,5 +11,7 @@
         public string? VerificationToken { get; set; }
         public string? ResetPasswordToken { get; set; }
         public DateTime? ResetTokenExpiry { get; set; }
+        public int? Points { get; set; }
+        public string? Level { get; set; }
     }
 }

@@ -13,9 +13,9 @@
         <v-tabs v-if="!isMobile" v-model="currentTab" class="d-none d-md-flex">
           <v-tab class="mx-1 nav-tab" @click="navigateTo('/')">Pagrindinis</v-tab>
           <v-tab class="mx-1 nav-tab" @click="navigateTo('/events')">Artimiausios savanoriškos veiklos</v-tab>
+          <v-tab class="mx-1 nav-tab" v-if="userRole === 'Volunteer'" @click="navigateTo('/profile')">Profilis</v-tab>
         </v-tabs>
 
-        <!-- 🌙 Dark Mode Toggle -->
         <v-btn @click="toggleTheme" icon>
           <v-icon>{{ isDark ? 'mdi-weather-night' : 'mdi-white-balance-sunny' }}</v-icon>
         </v-btn>
@@ -41,6 +41,7 @@
       <v-list>
         <v-list-item to="/" @click="drawer = false">Pagrindinis</v-list-item>
         <v-list-item to="/events" @click="drawer = false">Artimiausios savanoriškos veiklos</v-list-item>
+        <v-list-item to="/profile" v-if="userRole === 'Volunteer'" @click="drawer = false">Profilis</v-list-item>
 
         <v-list-item v-if="!isAuthenticated" to="/auth" @click="drawer = false">
           <v-icon left>mdi-login</v-icon> Prisijungti
@@ -102,6 +103,7 @@ export default {
   name: "App",
   data() {
     return {
+      userRole: "",
       toast: useToast(),
       currentTab: 0,
       drawer: false,
@@ -126,6 +128,16 @@ export default {
 
     this.isAuthenticated = !!accessToken; 
     this.username = storedUsername || "Vartotojas";
+    
+  if (accessToken) {
+    try {
+      const payload = JSON.parse(atob(accessToken.split('.')[1]));
+      this.userRole = payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || payload.role;
+    } catch (e) {
+      console.error("Failed to decode role:", e);
+      this.userRole = "";
+    }
+  }
     },
     async handleLogout() {
     const accessToken = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");

@@ -26,6 +26,9 @@ namespace LeisureVolunteeringPlatform.Models
         public bool? IsApproved { get; set; }
         public string? Feedback { get; set; }
 
+        public string? FinalFeedback { get; set; }
+        public int Points { get; set; } = 0;
+
         public User User { get; set; }
 
         public Event Event { get; set; }

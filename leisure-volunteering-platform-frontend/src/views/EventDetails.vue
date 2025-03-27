@@ -54,7 +54,7 @@
       <p class="text-subtitle-1">👥 <strong>Likusios vietos:</strong> {{ event.volunteersCountPerDate && event.volunteersCountPerDate[dateObj.date] !== undefined? event.volunteersCountPerDate[dateObj.date] : "?" }}</p>
     </v-col>
 
-    <v-col cols="4" class="d-flex justify-end align-center">
+    <v-col cols="4" class="d-flex flex-column align-end">
       <v-btn 
         v-if="userId === event.organizerId"
         color="primary"
@@ -73,6 +73,14 @@
 
       <v-icon left>mdi-account-group</v-icon> Savanorių sąrašas
       </v-btn>
+
+      <v-chip 
+       v-if="dateObj.needsFeedback && userId === event.organizerId" 
+      color="orange" 
+      class="mt-3 pulse-chip"
+      >
+      🔔 Įvertinkite savanorius!
+      </v-chip>
 
       <v-btn 
         v-if="userRole === 'Volunteer' && dateObj.hoursLeft > 24 && event.volunteersCountPerDate[dateObj.date] > 0 && !pendingApproval[dateObj.date] && (event.volunteerApprovalStatus[dateObj.date] === 'pending' || !event.volunteerApprovalStatus[dateObj.date])"
@@ -253,6 +261,57 @@
     </p>
       </v-col>
       </v-row>
+
+      <div v-if="volunteer.needsFeedback && volunteer.isApproved">
+                <v-row>
+                  <v-col cols="12" sm="8">
+                  <v-textarea
+                   v-model="volunteer.finalFeedback"
+                   label="📝 Atsiliepimas apie savanorio atliktą veiklą"
+                   outlined
+                   dense
+                   hide-details
+                   :class="{ 'dark-input': isDark }"
+                />
+                </v-col>
+                  <v-col cols="12" sm="4">
+                <v-text-field
+                v-model.number="volunteer.points"
+                label="🎯 Duoti taškus"
+                type="number"
+                min="0"
+                max="50"
+                outlined
+                dense
+                hide-details
+                :class="{ 'dark-input': isDark }"
+                @input="validatePoints(volunteer)"
+                />
+                <p v-if="invalidPoints[volunteer.registrationId]" class="text-red font-weight-bold">
+  ⚠️ Taškai turi būti skiriami nuo 0 iki 50!
+</p>
+            </v-col>
+        </v-row>
+        <v-btn
+          color="green darken-2"
+          class="mt-2 submit-feedback-btn"
+          small
+          rounded
+          :disabled="invalidPoints[volunteer.registrationId]"
+          @click="submitFinalFeedback(volunteer)"
+        >
+        💾 Išsaugoti įvertinimą
+      </v-btn>
+      </div>
+      <div v-else-if="!volunteer.needsFeedback && volunteer.isApproved === true">
+      <v-divider class="my-2" :class="{ 'dark-divider': isDark }" />
+      <p class="text-caption" :class="{ 'dark-text': isDark }">
+        📝 <strong>Atsiliepimas apie savanorį:</strong> <em>{{ volunteer.finalFeedback?.trim() || '-' }}</em>
+      </p>
+      <p class="text-caption" :class="{ 'dark-text': isDark }">
+        🎯 <strong>Skirti taškai:</strong> {{ volunteer.points }}/50
+      </p>
+    </div>
             </v-card>
           </v-col>
         </v-row>
@@ -363,6 +422,7 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      invalidPoints: {},
       isReapply: false,
       reapplyRegistrationId: null,
       unseenVolunteers: {},
@@ -423,40 +483,96 @@ export default {
   if (!this.event?.startDate || !this.event?.endDate) return [];
 
   const now = new Date();
-  now.setSeconds(0, 0, 0); 
+  now.setSeconds(0, 0, 0);
 
   const start = new Date(this.event.startDate);
   const end = new Date(this.event.endDate);
-  let dates = [];
+  const dates = [];
 
-  while (start <= end) {
-    const eventDate = new Date(start);
-    eventDate.setHours(0, 0, 0, 0);
+  const eventDateList = [];
+  const temp = new Date(start);
+  while (temp <= end) {
+    eventDateList.push(new Date(temp));
+    temp.setDate(temp.getDate() + 1);
+  }
 
-    const startTime = new Date(eventDate);
+  for (let i = 0; i < eventDateList.length; i++) {
+    const current = eventDateList[i];
+
+    const startTime = new Date(current);
     const [startHour, startMinute] = this.event.startTime.split(":");
     startTime.setHours(startHour, startMinute, 0, 0);
 
-    if (startTime > now) { 
+    const endTime = new Date(current);
+    const [endHour, endMinute] = this.event.endTime.split(":");
+    endTime.setHours(endHour, endMinute, 0, 0);
+
+   const startPlus24h = new Date(startTime.getTime() + 24 * 60 * 60 * 1000);
+
+   let shouldShow;
+    if (this.userId === this.event.organizerId) {
+      shouldShow = now < startPlus24h;
+    } else {
+      shouldShow = now < startTime;
+    }
+
+    const needsFeedback = this.userId === this.event.organizerId && now >= endTime && now < startPlus24h;
+
+    if (shouldShow) {
       const formattedDate = new Intl.DateTimeFormat("lt-LT", {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-      }).format(eventDate);
-      
+      }).format(current);
+
       const timeDiff = startTime - now;
-      const hoursLeft = timeDiff / (1000 * 60 * 60); 
+      const hoursLeft = timeDiff / (1000 * 60 * 60);
 
-      dates.push({ date: formattedDate, hoursLeft });
+      dates.push({
+        date: formattedDate,
+        hoursLeft,
+        needsFeedback,
+      });
     }
-
-    start.setDate(start.getDate() + 1);
   }
-
   return dates;
 }
 },
   methods: {
+ validatePoints(volunteer) {
+  this.invalidPoints[volunteer.registrationId] = volunteer.points < 0 || volunteer.points > 50;
+ },
+   async submitFinalFeedback(volunteer) {
+  try {
+    const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+
+    const payload = {
+      Feedback: volunteer.finalFeedback?.trim() || "",  
+      Points: volunteer.points || 0
+    };
+
+    const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/volunteers/${volunteer.registrationId}/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result?.message || "Nepavyko išsaugoti įvertinimo!");
+
+    this.toast.success("Įvertinimas išsaugotas sėkmingai!");
+    volunteer.finalFeedback = result.finalFeedback || payload.Feedback;
+    volunteer.points = result.points || payload.Points;
+    volunteer.needsFeedback = false;
+  } catch (error) {
+    console.error("Klaida saugant įvertinimą:", error);
+    this.toast.error(error.message || "Nepavyko išsaugoti!");
+  }
+},
     async reapplyToEvent(date) {
   try {
     const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
@@ -556,7 +672,9 @@ export default {
         },
         body: JSON.stringify({
           isApproved: isApproved,
-          feedback: volunteer.feedback || ""
+          feedback: volunteer.feedback || "",
+          finalFeedback: volunteer.finalFeedback || "",
+          points: volunteer.points || 0
         }),
       });
 
@@ -609,11 +727,33 @@ export default {
 
       const volunteersData = await response.json();
       
-      this.volunteers = volunteersData.map(v => ({
+      this.volunteers = volunteersData.map(v => {
+      const eventDate = new Date(v.eventDate);
+      const [endHour, endMinute] = this.event.endTime.split(":");
+      eventDate.setHours(endHour, endMinute, 0, 0);
+      const endPlus24h = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+
+       console.log(`[DEBUG] Volunteer: ${v.name} ${v.surname}`);
+  console.log(`   isApproved: ${v.isApproved}`);
+  console.log(`   finalFeedback:`, v.finalFeedback);
+  console.log(`   points:`, v.points);
+
+      const needsFeedback = 
+        this.userId === this.event.organizerId &&
+        v.isApproved === true &&
+        new Date() >= eventDate && 
+        new Date() < endPlus24h &&
+        v.finalFeedback === null;
+
+      return {
         ...v,
         registrationId: v.id,
-        eventDate: v.eventDate
-      }));
+        eventDate: v.eventDate,
+        needsFeedback,
+        finalFeedback: v.finalFeedback || "", 
+        points: v.points || 0
+      };
+    });
 
       this.showVolunteersModal = true;
       this.unseenVolunteers[date] = false;
@@ -1154,5 +1294,37 @@ async submitRegistration() {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+.pulse-chip {
+  animation: pulseReminder 1.5s infinite;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+@keyframes pulseReminder {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px 10px rgba(255, 152, 0, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 152, 0, 0);
+  }
+}
+
+.submit-feedback-btn {
+  font-weight: bold;
+  text-transform: none;
+  transition: all 0.3s ease;
+}
+
+.submit-feedback-btn:hover {
+  background-color: #2e7d32 !important;
+  color: white !important;
 }
 </style>

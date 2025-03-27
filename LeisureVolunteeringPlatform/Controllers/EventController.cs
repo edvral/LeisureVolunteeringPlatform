@@ -373,6 +373,33 @@ public class EventController : ControllerBase
     }
 
     [Authorize(Policy = "VolunteerOnly")]
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetUserEventRegistrations(int userId)
+    {
+        var registrations = await _context.EventRegistrations
+            .Include(r => r.Event)
+            .Where(r => r.UserId == userId)
+            .OrderByDescending(r => r.EventDate)
+            .ToListAsync();
+
+        var result = registrations.Select(r => new {
+            r.Id,
+            r.EventId,
+            EventName = r.Event.Name, 
+            r.EventDate,
+            r.RegisteredAt,
+            r.IsApproved,
+            r.Feedback,
+            r.Comment,
+            r.FinalFeedback,
+            r.Points
+        });
+
+        return Ok(result);
+    }
+
+
+    [Authorize(Policy = "VolunteerOnly")]
     [HttpPut("event-registrations/{registrationId}/update")]
     public async Task<IActionResult> UpdateRegistration(int registrationId, [FromBody] RegisterForEventDTO dto)
     {
@@ -449,6 +476,8 @@ public class EventController : ControllerBase
                   er.Comment,
                   er.IsApproved,
                   er.Feedback,
+                  er.FinalFeedback,
+                  er.Points,
                   EventDate = er.EventDate.ToString("yyyy-MM-dd"),
                   Email = u.Email 
               })
@@ -532,5 +561,23 @@ public class EventController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Registracija sėkmingai atšaukta!" });
+    }
+
+    [Authorize(Policy = "OrganizerOnly")]
+    [HttpPost("{eventId}/volunteers/{registrationId}/feedback")]
+    public async Task<IActionResult> SubmitVolunteerFeedback(int eventId, int registrationId, [FromBody] VolunteerFeedbackDTO feedbackDto)
+    {
+        var registration = await _context.EventRegistrations
+                   .FirstOrDefaultAsync(r => r.Id == registrationId && r.EventId == eventId);
+
+        if (registration == null)
+            return NotFound(new { message = "Registracija nerasta." });
+
+        registration.FinalFeedback = feedbackDto.Feedback;
+        registration.Points = feedbackDto.Points;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Įvertinimas išsaugotas sėkmingai!" });
     }
 }

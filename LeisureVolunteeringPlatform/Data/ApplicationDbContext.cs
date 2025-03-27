@@ -12,5 +12,6 @@ namespace LeisureVolunteeringPlatform.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         public DbSet<EventRegistration> EventRegistrations { get; set; }
+        public DbSet<LevelThreshold> LevelThresholds { get; set; }
     }
 }
