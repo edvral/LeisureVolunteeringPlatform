@@ -328,8 +328,6 @@ let result;
     }
   }
 };
-
-
 </script>
 
 <style scoped>

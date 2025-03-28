@@ -206,7 +206,6 @@ namespace LeisureVolunteeringPlatform.Controllers
             return Ok(new { message = "Slaptažodis sėkmingai pakeistas!" });
         }
 
-
         private string GenerateJwtToken(User user)
         {
             var claims = new[]

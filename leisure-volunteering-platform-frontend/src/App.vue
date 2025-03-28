@@ -179,6 +179,7 @@ export default {
       sessionStorage.removeItem("username");
 
       this.checkAuthStatus(); 
+      this.userRole = "";
       this.$router.push("/");
     },
      getTokenExpiration(token) {

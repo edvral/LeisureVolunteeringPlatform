@@ -398,7 +398,6 @@ public class EventController : ControllerBase
         return Ok(result);
     }
 
-
     [Authorize(Policy = "VolunteerOnly")]
     [HttpPut("event-registrations/{registrationId}/update")]
     public async Task<IActionResult> UpdateRegistration(int registrationId, [FromBody] RegisterForEventDTO dto)

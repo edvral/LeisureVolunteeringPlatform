@@ -16,7 +16,6 @@ namespace LeisureVolunteeringPlatform.Controllers
             _context = context;
         }
 
-
         [Authorize(Policy = "VolunteerOnly")]
         [HttpGet("{userId}")]
         public async Task<IActionResult> GetUserProfile(int userId)

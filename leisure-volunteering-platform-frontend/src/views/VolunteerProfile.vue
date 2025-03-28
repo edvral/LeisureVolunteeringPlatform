@@ -4,18 +4,19 @@
     <v-card class="pa-5" elevation="3">
       <v-row>
      <v-col cols="12" md="6" class="level-info">
-  <div class="info-item">
-    <v-icon color="amber darken-3" class="mr-2">mdi-star-circle</v-icon>
-    <span class="label">Taškai:</span> 
-    <span class="value">{{ points }}</span>
-  </div>
 
     <div class="info-item">
-    <v-icon :color="getLevelColor(levelName)" class="mr-2">
-    {{ currentLevelIcon }}
-    </v-icon>
-    <span class="label">Lygis:</span> 
-    <span class="value level-text">{{ levelName }}</span>
+      <v-icon color="amber darken-3" class="mr-2">mdi-star-circle</v-icon>
+      <span class="label">Taškai:</span> 
+      <span class="value">{{ points }}</span>
+    </div>
+
+    <div class="info-item">
+      <v-icon :color="getLevelColor(levelName)" class="mr-2">
+      {{ currentLevelIcon }}
+      </v-icon>
+        <span class="label">Lygis:</span> 
+        <span class="value level-text">{{ levelName }}</span>
     </div>
     </v-col>
 
@@ -50,9 +51,9 @@
   </div>
 </template>
 
-        </v-col>
-      </v-row>
-    </v-card>
+      </v-col>
+    </v-row>
+  </v-card>
 
     <v-card class="mt-4 pa-4" elevation="2">
       <h3 class="mb-2">🎯 Lygiai</h3>

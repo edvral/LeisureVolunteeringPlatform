@@ -127,7 +127,7 @@
     @click.prevent="cancelRegistration(dateObj.date)"
     >
     <v-icon left>mdi-close-circle</v-icon> Atsaukti registraciją
-  </a>
+    </a>
       </p>
 
      <div v-else-if="event.volunteerApprovalStatus[dateObj.date] === 'rejected' && userRole === 'Volunteer'" class="text-error font-weight-bold">
@@ -288,8 +288,8 @@
                 @input="validatePoints(volunteer)"
                 />
                 <p v-if="invalidPoints[volunteer.registrationId]" class="text-red font-weight-bold">
-  ⚠️ Taškai turi būti skiriami nuo 0 iki 50!
-</p>
+                ⚠️ Taškai turi būti skiriami nuo 0 iki 50!
+                </p>
             </v-col>
         </v-row>
         <v-btn
@@ -573,7 +573,7 @@ export default {
     this.toast.error(error.message || "Nepavyko išsaugoti!");
   }
 },
-    async reapplyToEvent(date) {
+  async reapplyToEvent(date) {
   try {
     const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
     const userId = this.getUserIdFromToken();
@@ -591,14 +591,11 @@ export default {
     });
 
     if (!response.ok) {
-      // Safely try to extract error message if it's a JSON
       let errorMessage = "Nepavyko gauti registracijos duomenų!";
-      try {
-        const errorJson = await response.json();
-        if (errorJson?.message) errorMessage = errorJson.message;
-      } catch (err) {
-        // Probably not JSON – ignore
-      }
+      
+      const errorJson = await response.json();
+      if (errorJson?.message) errorMessage = errorJson.message;
+      
       throw new Error(errorMessage);
     }
 
@@ -662,8 +659,6 @@ export default {
         return;
       }
 
-      console.log("Approving Volunteer:", volunteer.registrationId, isApproved);
-
       const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/volunteers/${volunteer.registrationId}/approve`, {
         method: "POST",
         headers: { 
@@ -678,10 +673,7 @@ export default {
         }),
       });
 
-      console.log("API Response Status:", response.status);
-
       const result = await response.json();
-      console.log("API Response Body:", result);
 
       if (!response.ok) throw new Error(result?.message || "Nepavyko atnaujinti registracijos būsenos!");
 
@@ -733,11 +725,6 @@ export default {
       eventDate.setHours(endHour, endMinute, 0, 0);
       const endPlus24h = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
 
-       console.log(`[DEBUG] Volunteer: ${v.name} ${v.surname}`);
-  console.log(`   isApproved: ${v.isApproved}`);
-  console.log(`   finalFeedback:`, v.finalFeedback);
-  console.log(`   points:`, v.points);
-
       const needsFeedback = 
         this.userId === this.event.organizerId &&
         v.isApproved === true &&
@@ -769,7 +756,7 @@ export default {
   validateForm() {
     this.invalidAge = this.registrationData.age <= 0;
   },
-async fetchEventDetails() {
+  async fetchEventDetails() {
   const eventId = this.$route.params.id;
   const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
 
@@ -850,7 +837,7 @@ async fetchEventDetails() {
       return null;
     }
   },
-async submitRegistration() {
+  async submitRegistration() {
   if (!this.registrationData.name || !this.registrationData.surname || !this.registrationData.age) {
     this.toast.error("Užpildykite visus privalomus laukus!");
     return;

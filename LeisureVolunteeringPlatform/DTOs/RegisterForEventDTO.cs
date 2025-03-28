@@ -10,5 +10,4 @@
         public int Age { get; set; }
         public string? Comment { get; set; }
     }
-
 }

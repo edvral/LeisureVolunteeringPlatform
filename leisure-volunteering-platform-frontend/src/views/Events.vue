@@ -21,12 +21,9 @@
         <v-card-title class="font-weight-bold">
           <span class="flex-grow-1">{{ event.name }}</span>
 
-          <v-icon
-    v-if="volunteerResponses[event.id] === true"
-    class="alert-icon ml-2"
-  >
-    mdi-alert-circle
-  </v-icon>
+          <v-icon v-if="volunteerResponses[event.id] === true" class="alert-icon ml-2">
+          mdi-alert-circle
+          </v-icon>
 
         </v-card-title>
         <v-card-text>
@@ -50,7 +47,7 @@
           </p>
         </v-card-text>
 
-        <v-card-actions>
+          <v-card-actions>
             <v-btn v-if="event.organizerId === userId" icon @click="editEvent(event.id)">
               <v-icon :color="isDark ? 'white' : 'primary'">mdi-pencil</v-icon>
             </v-btn>
@@ -181,7 +178,7 @@ filteredEvents() {
     return null;
   }
 },
-    async fetchEvents() {
+async fetchEvents() {
   try {
     const response = await fetch("https://localhost:7177/api/events");
     if (!response.ok) throw new Error("Failed to fetch events");
@@ -205,12 +202,8 @@ const enrichedEvents = await Promise.all(
       const seen = localStorage.getItem(`seen-response-${event.id}-user-${this.userId}`);
       if (seen === "false") {
         volunteerResponses[event.id] = true;
-        console.log("Should show icon for event:", event.id);
-        console.log(`Seen for event ${event.id}:`, seen);
-
       }
     }
-
     const start = new Date(event.startDate);
     const end = new Date(event.endDate);
     const now = new Date();
@@ -245,7 +238,7 @@ this.volunteerResponses = volunteerResponses;
     console.error("Klaida gaunant veiklas:", error);
   }
 },
-   goToEventDetails(eventId) {
+  goToEventDetails(eventId) {
   if (this.volunteerResponses[eventId]) {
      localStorage.setItem(`seen-response-${eventId}-user-${this.userId}`, "true");
      this.volunteerResponses[eventId] = false;
