@@ -577,6 +577,31 @@ public class EventController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await UpdateUserPointsAndLevelAsync(registration.UserId);
+
         return Ok(new { message = "Įvertinimas išsaugotas sėkmingai!" });
+    }
+
+    private async Task UpdateUserPointsAndLevelAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return;
+
+        var totalPoints = await _context.EventRegistrations
+            .Where(r => r.UserId == userId && r.IsApproved == true)
+            .SumAsync(r => r.Points);
+
+        user.Points = totalPoints;
+
+        var levels = await _context.LevelThresholds
+            .OrderBy(l => l.MinPoints)
+            .ToListAsync();
+
+        var matchedLevel = levels
+            .LastOrDefault(l => totalPoints >= l.MinPoints && (l.MaxPoints == null || totalPoints <= l.MaxPoints));
+
+        user.Level = matchedLevel?.LevelName ?? "Naujas Lapas";
+
+        await _context.SaveChangesAsync();
     }
 }

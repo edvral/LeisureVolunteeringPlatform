@@ -51,7 +51,7 @@
     <v-col cols="8">
       <p class="text-subtitle-1">📅 <strong>{{ dateObj.date }}</strong></p>
       <p class="text-subtitle-1">⏰ <strong>{{ event.startTime }} - {{ event.endTime }}</strong></p>
-      <p class="text-subtitle-1">👥 <strong>Likusios vietos:</strong> {{ event.volunteersCountPerDate && event.volunteersCountPerDate[dateObj.date] !== undefined? event.volunteersCountPerDate[dateObj.date] : "?" }}</p>
+      <p class="text-subtitle-1">👥 <strong>Likusios vietos: </strong>{{ event.volunteersCountPerDate?.[dateObj.date] ?? event.volunteersCount ?? "?" }}</p>
     </v-col>
 
     <v-col cols="4" class="d-flex flex-column align-end">
@@ -75,7 +75,7 @@
       </v-btn>
 
       <v-chip 
-       v-if="dateObj.needsFeedback && userId === event.organizerId" 
+       v-if="dateObj.needsFeedback && userId === event.organizerId && shouldShowFeedbackReminder(dateObj.date)" 
       color="orange" 
       class="mt-3 pulse-chip"
       >
@@ -124,9 +124,9 @@
     v-if="dateObj.hoursLeft > 24" 
     href="#" 
     class="fancy-link cancel-link" 
-    @click.prevent="cancelRegistration(dateObj.date)"
+    @click.prevent="confirmCancel(dateObj.date)"
     >
-    <v-icon left>mdi-close-circle</v-icon> Atsaukti registraciją
+    <v-icon left>mdi-close-circle</v-icon> Atšaukti registraciją
     </a>
       </p>
 
@@ -152,7 +152,7 @@
     </transition>
 
    <div v-if="dateObj.hoursLeft > 24" class="mt-3">
-      <v-btn color="warning" small outlined class="register-again" @click="reapplyToEvent(dateObj.date)">
+      <v-btn color="warning" small outlined class="register-again right-align" @click="reapplyToEvent(dateObj.date)">
         <v-icon left>mdi-refresh</v-icon> Registruotis dar kartą
       </v-btn>
     </div>
@@ -276,8 +276,8 @@
                 </v-col>
                   <v-col cols="12" sm="4">
                 <v-text-field
-                v-model.number="volunteer.points"
-                label="🎯 Duoti taškus"
+                v-model="volunteer.points"
+                label="🎯 Duoti taškus (0 - 50)"
                 type="number"
                 min="0"
                 max="50"
@@ -303,7 +303,7 @@
         💾 Išsaugoti įvertinimą
       </v-btn>
       </div>
-      <div v-else-if="!volunteer.needsFeedback && volunteer.isApproved === true">
+      <div v-else-if="!volunteer.needsFeedback && volunteer.isApproved === true && (volunteer.finalFeedback !== null)">
       <v-divider class="my-2" :class="{ 'dark-divider': isDark }" />
       <p class="text-caption" :class="{ 'dark-text': isDark }">
         📝 <strong>Atsiliepimas apie savanorį:</strong> <em>{{ volunteer.finalFeedback?.trim() || '-' }}</em>
@@ -403,6 +403,20 @@
   </v-card>
 </v-dialog>
 
+<v-dialog v-model="cancelConfirmation.show" max-width="400">
+  <v-card>
+    <v-card-title class="headline">Atšaukti registraciją?</v-card-title>
+    <v-card-text>
+      Ar tikrai norite atšaukti savo registraciją 
+      <strong>{{ cancelConfirmation.date }}</strong> dienai?
+    </v-card-text>  
+    <v-card-actions class="d-flex justify-end">
+      <v-btn text color="grey darken-1" @click="cancelConfirmation.show = false">Atšaukti</v-btn>
+      <v-btn color="red" @click="proceedCancel">Patvirtinti</v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
 </template>
 
 <script>
@@ -422,6 +436,11 @@ export default {
   name: "EventDetails",
   data() {
     return {
+      cancelConfirmation: {
+      show: false,
+      date: null,
+      },
+      volunteersByDate: {},
       invalidPoints: {},
       isReapply: false,
       reapplyRegistrationId: null,
@@ -539,9 +558,29 @@ export default {
 }
 },
   methods: {
- validatePoints(volunteer) {
-  this.invalidPoints[volunteer.registrationId] = volunteer.points < 0 || volunteer.points > 50;
- },
+  confirmCancel(date) {
+  this.cancelConfirmation.date = date;
+  this.cancelConfirmation.show = true;
+},
+shouldShowFeedbackReminder(date) {
+  const list = this.volunteersByDate[date] || [];
+  return list.some(v => v.isApproved === true && v.finalFeedback === null);
+},
+proceedCancel() {
+  this.cancelRegistration(this.cancelConfirmation.date);
+  this.cancelConfirmation.show = false;
+},
+validatePoints(volunteer) {
+  const value = volunteer.points;
+
+  if (value === '' || value === null || value === undefined) {
+    this.invalidPoints[volunteer.registrationId] = true;
+    return;
+  }
+
+  const numeric = Number(value);
+  this.invalidPoints[volunteer.registrationId] = isNaN(numeric) || numeric < 0 || numeric > 50;
+},
    async submitFinalFeedback(volunteer) {
   try {
     const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
@@ -568,6 +607,9 @@ export default {
     volunteer.finalFeedback = result.finalFeedback || payload.Feedback;
     volunteer.points = result.points || payload.Points;
     volunteer.needsFeedback = false;
+
+    await this.fetchVolunteersForAllDates();
+
   } catch (error) {
     console.error("Klaida saugant įvertinimą:", error);
     this.toast.error(error.message || "Nepavyko išsaugoti!");
@@ -697,9 +739,13 @@ export default {
       localStorage.setItem(`seen-response-${this.event.id}-user-${volunteerUserId}`, "false");
       }
 
-      if (isApproved) {
-      this.event.volunteersCountPerDate[formattedDate]--;
+     if (isApproved) {
+      if (this.event.volunteersCountPerDate[formattedDate] === undefined) {
+      this.event.volunteersCountPerDate[formattedDate] = this.event.volunteersCount;
       }
+
+      this.event.volunteersCountPerDate[formattedDate]--;
+     }
 
       await this.fetchVolunteers(this.selectedDate);
     } catch (error) {
@@ -737,7 +783,7 @@ export default {
         registrationId: v.id,
         eventDate: v.eventDate,
         needsFeedback,
-        finalFeedback: v.finalFeedback || "", 
+        finalFeedback: v.finalFeedback, 
         points: v.points || 0
       };
     });
@@ -796,6 +842,57 @@ export default {
 
   } catch (error) {
     console.error("Klaida gaunant renginio informaciją:", error);
+  }
+},
+
+async fetchVolunteersForAllDates() {
+  const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken");
+
+  for (const dateObj of this.eventDates) {
+    const date = dateObj.date;
+    const formattedDate = date.split('.').reverse().join('-');
+
+    try {
+      const response = await fetch(`https://localhost:7177/api/events/${this.event.id}/volunteers/${formattedDate}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        this.volunteersByDate[date] = [];
+        continue;
+      }
+
+      const volunteersData = await response.json();
+
+      const parsed = volunteersData.map(v => {
+        const eventDate = new Date(v.eventDate);
+        const [endHour, endMinute] = this.event.endTime.split(":");
+        eventDate.setHours(endHour, endMinute, 0, 0);
+        const endPlus24h = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+
+        const needsFeedback = 
+          this.userId === this.event.organizerId &&
+          v.isApproved === true &&
+          new Date() >= eventDate &&
+          new Date() < endPlus24h &&
+          v.finalFeedback === null;
+
+        return {
+          ...v,
+          registrationId: v.id,
+          eventDate: v.eventDate,
+          needsFeedback,
+          finalFeedback: v.finalFeedback, 
+          points: v.points || 0
+        };
+      });
+
+      this.volunteersByDate[date] = parsed;
+
+    } catch (error) {
+      console.error(`Klaida gaunant savanorius (${date}):`, error);
+      this.volunteersByDate[date] = [];
+    }
   }
 },
     initMap() {
@@ -947,11 +1044,14 @@ export default {
   }
 }
 },
-  mounted() {
-    this.fetchEventDetails();
+ mounted() {
+  (async () => {
+    await this.fetchEventDetails();
     this.userRole = this.getUserRoleFromToken();
     this.userId = Number(this.getUserIdFromToken());
-  },
+    await this.fetchVolunteersForAllDates();
+  })();
+ }
 }
 </script>
 

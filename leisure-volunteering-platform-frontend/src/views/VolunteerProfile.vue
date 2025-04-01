@@ -79,7 +79,7 @@
         <th>Veikla</th>
         <th>Data</th>
         <th>Būsena</th>
-        <th>Atsiliepimas</th> 
+        <th>Veiklos atsiliepimas</th> 
         <th>Taškai</th> 
       </tr>
     </thead>
@@ -87,27 +87,37 @@
      <tr v-for="(entry, index) in sortedEventHistory" :key="index">
         <td><router-link v-if="entry.eventId" :to="`/event/${entry.eventId}`" class="event-link">
         {{ entry.eventName || 'Nežinoma veikla' }}
-  </router-link>
-  <span v-else>{{ entry.eventName || 'Nežinoma veikla' }}</span>
-</td>
+        </router-link>
+        <span v-else>{{ entry.eventName || 'Nežinoma veikla' }}</span>
+        </td>
         <td>{{ formatDate(entry.eventDate) }}</td>
         <td>
-  <v-chip
-    :color="entry.isApproved === true ? 'green' : entry.isApproved === false ? 'red' : 'orange'"
-    small
-    dark
-  >
-    {{
-      entry.isApproved === true
-        ? 'Patvirtinta'
-        : entry.isApproved === false
-        ? 'Atmesta'
-        : 'Laukiama atsakymo'
-    }}
-  </v-chip>
+    <v-chip
+      class="status-chip"
+      :color="entry.isApproved === true ? 'green' : entry.isApproved === false ? 'red' : 'orange'"
+      small
+      dark
+    >
+      {{
+        entry.isApproved === true
+          ? 'Patvirtinta'
+          : entry.isApproved === false
+          ? 'Atmesta'
+          : 'Laukiama atsakymo'
+      }}
+    </v-chip>
+  <div v-if="entry.isApproved !== null && entry.feedback" class="mt-1 text-body-2" :class="isDark ? 'text-white' : 'text-grey-darken-1'">
+  <v-icon x-small left>mdi-message-text</v-icon> {{ entry.feedback }}
+  </div>
 </td>
 <td>{{ entry.isApproved === false ? '-' : (entry.finalFeedback?.trim() || '-') }}</td>
-<td>{{ entry.isApproved === false ? '-' : `${entry.points ?? 0}/50` }}</td>
+<td>
+{{
+    entry.isApproved === false || entry.isApproved === null
+      ? '-' 
+      : (entry.points == null ? '-' : `${entry.points}/50`)
+  }}
+</td>
       </tr>
     </tbody>
   </v-table>
@@ -266,5 +276,20 @@ export default {
 .event-link:hover {
   color: #1565c0;
   text-decoration: underline;
+}
+
+.status-cell {
+  vertical-align: top !important;
+}
+
+.status-chip {
+  margin-top: 6px; 
+}
+
+.status-feedback {
+  font-size: 0.85rem;
+  color: #757575;
+  font-style: italic;
+  margin-top: 4px;
 }
 </style>
